@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "BFuKtQ7JeFg=",
+  "success": true,
+  "projectFilePath": "D:\\codex\\ClickRun\\ClickRun.Modern\\ClickRun.Core\\ClickRun.Core.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\哈老四\\.nuget\\packages\\communitytoolkit.mvvm\\8.2.2\\communitytoolkit.mvvm.8.2.2.nupkg.sha512",
+    "C:\\Users\\哈老四\\.nuget\\packages\\system.text.json\\8.0.5\\system.text.json.8.0.5.nupkg.sha512"
+  ],
+  "logs": []
+}

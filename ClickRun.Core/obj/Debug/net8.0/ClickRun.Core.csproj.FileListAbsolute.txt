@@ -1,0 +1,12 @@
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.Core\bin\Debug\net8.0\ClickRun.Core.deps.json
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.Core\bin\Debug\net8.0\ClickRun.Core.dll
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.Core\bin\Debug\net8.0\ClickRun.Core.pdb
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.Core\obj\Debug\net8.0\ClickRun.Core.csproj.AssemblyReference.cache
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.Core\obj\Debug\net8.0\ClickRun.Core.GeneratedMSBuildEditorConfig.editorconfig
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.Core\obj\Debug\net8.0\ClickRun.Core.AssemblyInfoInputs.cache
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.Core\obj\Debug\net8.0\ClickRun.Core.AssemblyInfo.cs
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.Core\obj\Debug\net8.0\ClickRun.Core.csproj.CoreCompileInputs.cache
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.Core\obj\Debug\net8.0\ClickRun.Core.dll
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.Core\obj\Debug\net8.0\refint\ClickRun.Core.dll
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.Core\obj\Debug\net8.0\ClickRun.Core.pdb
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.Core\obj\Debug\net8.0\ref\ClickRun.Core.dll

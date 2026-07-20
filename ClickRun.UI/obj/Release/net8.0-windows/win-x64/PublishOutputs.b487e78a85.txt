@@ -1,0 +1,9 @@
+D:\codex\ClickRun\ClickRun.Modern\publish\ClickRun.Modern.exe
+D:\codex\ClickRun\ClickRun.Modern\publish\ClickRun.Modern.dll
+D:\codex\ClickRun\ClickRun.Modern\publish\ClickRun.Modern.deps.json
+D:\codex\ClickRun\ClickRun.Modern\publish\ClickRun.Modern.runtimeconfig.json
+D:\codex\ClickRun\ClickRun.Modern\publish\ClickRun.Modern.pdb
+D:\codex\ClickRun\ClickRun.Modern\publish\CommunityToolkit.Mvvm.dll
+D:\codex\ClickRun\ClickRun.Modern\publish\Hardcodet.NotifyIcon.Wpf.dll
+D:\codex\ClickRun\ClickRun.Modern\publish\ClickRun.Core.dll
+D:\codex\ClickRun\ClickRun.Modern\publish\ClickRun.Core.pdb

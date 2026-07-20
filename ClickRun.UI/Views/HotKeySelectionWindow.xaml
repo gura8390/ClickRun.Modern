@@ -1,0 +1,64 @@
+<Window x:Class="ClickRun.UI.Views.HotKeySelectionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="选择热键"
+        Height="400" Width="320"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource BackgroundBrush}"
+        ShowInTaskbar="False">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 标题 -->
+        <TextBlock Grid.Row="0"
+                   Text="选择热键"
+                   Style="{DynamicResource H2Style}"
+                   Margin="0,0,0,4" />
+
+        <TextBlock Grid.Row="1"
+                   Text="选择一个功能键作为启停热键"
+                   Style="{DynamicResource CaptionStyle}"
+                   Margin="0,0,0,16" />
+
+        <!-- F1-F12 按钮网格 -->
+        <UniformGrid Grid.Row="2"
+                     Rows="3" Columns="4"
+                     Margin="0,0,0,16">
+            <Button Content="F1" Tag="112" Style="{DynamicResource SecondaryButton}" Margin="4" Click="HotKey_Click" />
+            <Button Content="F2" Tag="113" Style="{DynamicResource SecondaryButton}" Margin="4" Click="HotKey_Click" />
+            <Button Content="F3" Tag="114" Style="{DynamicResource SecondaryButton}" Margin="4" Click="HotKey_Click" />
+            <Button Content="F4" Tag="115" Style="{DynamicResource SecondaryButton}" Margin="4" Click="HotKey_Click" />
+            <Button Content="F5" Tag="116" Style="{DynamicResource SecondaryButton}" Margin="4" Click="HotKey_Click" />
+            <Button Content="F6" Tag="117" Style="{DynamicResource SecondaryButton}" Margin="4" Click="HotKey_Click" />
+            <Button Content="F7" Tag="118" Style="{DynamicResource SecondaryButton}" Margin="4" Click="HotKey_Click" />
+            <Button Content="F8" Tag="119" Style="{DynamicResource SecondaryButton}" Margin="4" Click="HotKey_Click" />
+            <Button Content="F9" Tag="120" Style="{DynamicResource SecondaryButton}" Margin="4" Click="HotKey_Click" />
+            <Button Content="F10" Tag="121" Style="{DynamicResource SecondaryButton}" Margin="4" Click="HotKey_Click" />
+            <Button Content="F11" Tag="122" Style="{DynamicResource SecondaryButton}" Margin="4" Click="HotKey_Click" />
+            <Button Content="F12" Tag="123" Style="{DynamicResource SecondaryButton}" Margin="4" Click="HotKey_Click" />
+        </UniformGrid>
+
+        <!-- 当前选择和取消按钮 -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+            <TextBlock Text="当前: "
+                       VerticalAlignment="Center"
+                       Style="{DynamicResource CaptionStyle}"
+                       Margin="0,0,8,0" />
+            <TextBlock Text="{Binding CurrentHotKeyName}"
+                       VerticalAlignment="Center"
+                       Style="{DynamicResource DataStyle}"
+                       Margin="0,0,16,0" />
+            <Button Content="取消"
+                    Style="{DynamicResource SecondaryButton}"
+                    Click="Cancel_Click"
+                    Margin="0,0,0,0" />
+        </StackPanel>
+    </Grid>
+</Window>
