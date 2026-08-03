@@ -1,62 +1,55 @@
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
+using System.Collections.ObjectModel;
+using System.Reflection;
 using System.Windows;
-using System.Windows.Input;
 using System.Windows.Interop;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using ClickRun.Core.Helpers;
 using ClickRun.Core.Models;
 using ClickRun.Core.Services;
 
 namespace ClickRun.UI.ViewModels;
 
-public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
+public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private readonly ClickService _clickService;
     private readonly HotKeyService _hotKeyService;
     private readonly ConfigService _configService;
-    private ClickConfig _config;
-    private ClickStats _stats;
+    private readonly ClickStats _stats;
     private Window? _window;
     private System.Windows.Threading.DispatcherTimer? _uiTimer;
-    private bool _isUnlimited = true;
+    private System.Windows.Threading.DispatcherTimer? _saveTimer;
     private bool _disposed;
     private Action? _onStartedHandler;
     private Action? _onStoppedHandler;
-    private bool _isSettingsViewVisible;
+    private Action? _onBlockedHandler;
+    private WarningKind _warningKind = WarningKind.None;
 
-    public event PropertyChangedEventHandler? PropertyChanged;
+    private enum WarningKind { None, HotKey, Blocked }
 
     // ==================== 属性 ====================
 
-    public ClickConfig Config
-    {
-        get => _config;
-        set { _config = value; OnPropertyChanged(); }
-    }
+    [ObservableProperty]
+    private ClickConfig _config;
 
-    public ClickStats Stats
-    {
-        get => _stats;
-        set { _stats = value; OnPropertyChanged(); }
-    }
+    public ClickStats Stats => _stats;
 
-    public bool IsRunning
-    {
-        get => _stats.IsRunning;
-        set
-        {
-            _stats.IsRunning = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(IsNotRunning));
-            OnPropertyChanged(nameof(ButtonText));
-        }
-    }
+    /// <summary>
+    /// 运行状态 - 以 ClickService 为唯一事实源
+    /// </summary>
+    public bool IsRunning => _clickService.IsRunning;
 
     public bool IsNotRunning => !IsRunning;
 
     public string ButtonText => IsRunning ? "⏹  停止" : "▶  开始连点";
 
-    public string HotKeyName => NativeMethods.GetKeyName((uint)_config.HotKey);
+    public string ToggleMenuText => IsRunning ? "⏹ 停止连点" : "▶ 开始连点";
+
+    public string TrayToolTip => IsRunning
+        ? $"ClickRun - 运行中 · {_stats.SessionClicks:N0} 次"
+        : "ClickRun - 已停止";
+
+    public string HotKeyName => NativeMethods.FormatHotKey(Config.HotKeyModifiers, Config.HotKey);
 
     public string SessionClicksText => _stats.SessionClicks.ToString("N0");
 
@@ -66,20 +59,43 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
 
     public string CpsText => _stats.ClicksPerSecond.ToString("F1");
 
+    public string VersionText { get; } = "v" + (Assembly.GetExecutingAssembly()
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "2.1");
+
+    /// <summary>
+    /// 警示条消息（null 时隐藏）
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WarningVisibility))]
+    private string? _warningMessage;
+
+    public Visibility WarningVisibility =>
+        string.IsNullOrEmpty(WarningMessage) ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>
+    /// 配置方案列表（ComboBox 数据源）
+    /// </summary>
+    public ObservableCollection<ConfigProfile> Profiles { get; }
+
+    /// <summary>
+    /// 当前选中的配置方案，选中即应用
+    /// </summary>
+    [ObservableProperty]
+    private ConfigProfile? _selectedProfile;
+
     /// <summary>
     /// 是否选择无限次数
     /// </summary>
+    private bool _isUnlimited = true;
     public bool IsUnlimited
     {
         get => _isUnlimited;
         set
         {
-            if (_isUnlimited != value)
+            if (SetProperty(ref _isUnlimited, value))
             {
-                _isUnlimited = value;
-                OnPropertyChanged();
                 OnPropertyChanged(nameof(IsLimited));
-                if (value) _config.ClickLimit = 0;
+                if (value) Config.ClickLimit = 0;
             }
         }
     }
@@ -90,15 +106,7 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     public bool IsLimited
     {
         get => !_isUnlimited;
-        set
-        {
-            if (_isUnlimited == value)
-            {
-                _isUnlimited = !value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(IsUnlimited));
-            }
-        }
+        set => IsUnlimited = !value;
     }
 
     /// <summary>
@@ -106,14 +114,13 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     public bool StartWithWindows
     {
-        get => _config.StartWithWindows;
+        get => Config.StartWithWindows;
         set
         {
-            if (_config.StartWithWindows != value)
+            if (Config.StartWithWindows != value)
             {
-                _config.StartWithWindows = value;
+                Config.StartWithWindows = value;
                 AutoStartService.SetAutoStart(value);
-                SaveConfig();
                 OnPropertyChanged();
             }
         }
@@ -124,13 +131,12 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     public bool AlwaysOnTop
     {
-        get => _config.AlwaysOnTop;
+        get => Config.AlwaysOnTop;
         set
         {
-            if (_config.AlwaysOnTop != value)
+            if (Config.AlwaysOnTop != value)
             {
-                _config.AlwaysOnTop = value;
-                SaveConfig();
+                Config.AlwaysOnTop = value;
                 OnPropertyChanged();
             }
         }
@@ -139,15 +145,14 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     /// <summary>
     /// 是否显示设置页面
     /// </summary>
+    private bool _isSettingsViewVisible;
     public bool IsSettingsViewVisible
     {
         get => _isSettingsViewVisible;
         set
         {
-            if (_isSettingsViewVisible != value)
+            if (SetProperty(ref _isSettingsViewVisible, value))
             {
-                _isSettingsViewVisible = value;
-                OnPropertyChanged();
                 OnPropertyChanged(nameof(IsMainViewVisible));
                 OnPropertyChanged(nameof(IsSettingsViewVisibleAsVisibility));
             }
@@ -164,15 +169,6 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     public Visibility IsSettingsViewVisibleAsVisibility => _isSettingsViewVisible ? Visibility.Visible : Visibility.Collapsed;
 
-    // ==================== 命令 ====================
-
-    public ICommand ToggleCommand { get; }
-    public ICommand ChangeHotKeyCommand { get; }
-    public ICommand ShowSettingsCommand { get; }
-    public ICommand HideSettingsCommand { get; }
-    public ICommand OpenProjectUrlCommand { get; }
-    public ICommand OpenGitHubUrlCommand { get; }
-
     // ==================== 构造函数 ====================
 
     public MainWindowViewModel()
@@ -182,7 +178,10 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         _stats = new ClickStats();
 
         // 初始化无限/指定状态
-        _isUnlimited = _config.ClickLimit == 0;
+        _isUnlimited = Config.ClickLimit == 0;
+
+        // 初始化方案列表
+        Profiles = new ObservableCollection<ConfigProfile>(Config.Profiles);
 
         _clickService = new ClickService();
         _hotKeyService = new HotKeyService();
@@ -191,23 +190,37 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         _clickService.OnClick += OnClickPerformed;
         _onStartedHandler = () =>
         {
-            Application.Current?.Dispatcher.BeginInvoke(() => IsRunning = true);
+            Application.Current?.Dispatcher.BeginInvoke(() =>
+            {
+                NotifyRunningStateChanged();
+                if (Config.PlaySound) NativeMethods.MessageBeep(NativeMethods.MB_ICONASTERISK);
+            });
         };
         _onStoppedHandler = () =>
         {
-            Application.Current?.Dispatcher.BeginInvoke(() => IsRunning = false);
+            Application.Current?.Dispatcher.BeginInvoke(() =>
+            {
+                NotifyRunningStateChanged();
+                if (Config.PlaySound) NativeMethods.MessageBeep(NativeMethods.MB_OK);
+            });
+        };
+        _onBlockedHandler = () =>
+        {
+            Application.Current?.Dispatcher.BeginInvoke(() =>
+                ShowWarning(WarningKind.Blocked, "点击可能被系统拦截：目标窗口权限过高，可尝试以管理员身份运行 ClickRun。"));
         };
         _clickService.OnStarted += _onStartedHandler;
         _clickService.OnStopped += _onStoppedHandler;
-        _hotKeyService.OnHotKeyPressed += ToggleClicking;
+        _clickService.OnClickBlocked += _onBlockedHandler;
+        _hotKeyService.OnHotKeyPressed += Toggle;
 
-        // 初始化命令
-        ToggleCommand = new RelayCommand(ToggleClicking);
-        ChangeHotKeyCommand = new RelayCommand(ChangeHotKey);
-        ShowSettingsCommand = new RelayCommand(() => IsSettingsViewVisible = true);
-        HideSettingsCommand = new RelayCommand(() => IsSettingsViewVisible = false);
-        OpenProjectUrlCommand = new RelayCommand(() => OpenUrl("https://github.com/gura8390/ClickRun.Modern"));
-        OpenGitHubUrlCommand = new RelayCommand(() => OpenUrl("https://github.com/gura8390/ClickRun.Modern"));
+        // 配置变更 → 防抖保存（P1-4）
+        Config.PropertyChanged += OnConfigPropertyChanged;
+        _saveTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(500)
+        };
+        _saveTimer.Tick += OnSaveTimerTick;
 
         // UI更新定时器
         _uiTimer = new System.Windows.Threading.DispatcherTimer
@@ -218,6 +231,99 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         _uiTimer.Start();
     }
 
+    // ==================== 命令 ====================
+
+    [RelayCommand]
+    private void Toggle()
+    {
+        if (_disposed) return;
+
+        if (_clickService.IsRunning)
+        {
+            _clickService.Stop();
+        }
+        else
+        {
+            if (_warningKind == WarningKind.Blocked) ClearWarning();
+            _clickService.Start(Config, _stats);
+        }
+    }
+
+    [RelayCommand]
+    private void ChangeHotKey()
+    {
+        if (_window == null) return;
+
+        var dialog = new Views.HotKeySelectionWindow(Config.HotKey, Config.HotKeyModifiers)
+        {
+            Owner = _window
+        };
+
+        if (dialog.ShowDialog() == true && dialog.SelectedHotKey.HasValue)
+        {
+            Config.HotKey = dialog.SelectedHotKey.Value;
+            Config.HotKeyModifiers = dialog.SelectedModifiers;
+            RegisterHotKey();
+            OnPropertyChanged(nameof(HotKeyName));
+        }
+    }
+
+    [RelayCommand]
+    private void ShowSettings() => IsSettingsViewVisible = true;
+
+    [RelayCommand]
+    private void HideSettings() => IsSettingsViewVisible = false;
+
+    [RelayCommand]
+    private void OpenProjectUrl() => OpenUrl("https://github.com/gura8390/ClickRun.Modern");
+
+    [RelayCommand]
+    private void OpenGitHubUrl() => OpenUrl("https://github.com/gura8390/ClickRun.Modern");
+
+    [RelayCommand]
+    private void SaveProfile()
+    {
+        if (_window == null) return;
+
+        var dialog = new Views.SaveProfileDialog(Config.Profiles.Select(p => p.Name))
+        {
+            Owner = _window
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        var profile = new ConfigProfile
+        {
+            Name = dialog.ProfileName.Trim(),
+            Interval = Config.Interval,
+            RandomDelay = Config.RandomDelay,
+            Button = Config.Button,
+            Mode = Config.Mode,
+            ClickLimit = Config.ClickLimit
+        };
+
+        Config.Profiles.Add(profile);
+        Profiles.Add(profile);
+        SelectedProfile = profile;
+        ScheduleSave();
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelectedProfile))]
+    private void DeleteProfile()
+    {
+        if (SelectedProfile == null) return;
+
+        Config.Profiles.Remove(SelectedProfile);
+        Profiles.Remove(SelectedProfile);
+        SelectedProfile = null;
+        ScheduleSave();
+    }
+
+    private bool HasSelectedProfile => SelectedProfile != null;
+
+    [RelayCommand]
+    private void DismissWarning() => ClearWarning();
+
     // ==================== 公共方法 ====================
 
     public void Initialize(Window window)
@@ -225,35 +331,11 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         _window = window;
 
         // 同步开机自启状态
-        _config.StartWithWindows = AutoStartService.IsAutoStartEnabled();
+        Config.StartWithWindows = AutoStartService.IsAutoStartEnabled();
         OnPropertyChanged(nameof(StartWithWindows));
 
-        // 注册全局热键
-        var hwnd = new WindowInteropHelper(window).Handle;
-        bool success = _hotKeyService.Register(hwnd, _config.HotKeyModifiers, _config.HotKey);
-
-        if (!success)
-        {
-            MessageBox.Show(window,
-                $"热键 {HotKeyName} 注册失败，可能已被其他程序占用。\n请尝试在设置中更换热键。",
-                "热键冲突",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-        }
-    }
-
-    public void ToggleClicking()
-    {
-        if (_disposed) return;
-
-        if (IsRunning)
-        {
-            _clickService.Stop(_stats);
-        }
-        else
-        {
-            _clickService.Start(_config, _stats);
-        }
+        // 注册全局热键（失败走非模态警示条，不打断启动）
+        RegisterHotKey();
     }
 
     public bool ProcessHotKeyMessage(int msg, IntPtr wParam, IntPtr lParam)
@@ -261,57 +343,83 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         return _hotKeyService.ProcessMessage(msg, wParam, lParam);
     }
 
+    /// <summary>
+    /// 立即保存配置（退出前刷新防抖缓冲）
+    /// </summary>
     public void SaveConfig()
     {
-        _configService.Save(_config);
-    }
-
-    public void ChangeHotKey()
-    {
-        if (_window == null) return;
-
-        var dialog = new Views.HotKeySelectionWindow(_config.HotKey)
-        {
-            Owner = _window
-        };
-
-        if (dialog.ShowDialog() == true && dialog.SelectedHotKey.HasValue)
-        {
-            _config.HotKey = dialog.SelectedHotKey.Value;
-
-            var hwnd = new WindowInteropHelper(_window).Handle;
-            bool success = _hotKeyService.Register(hwnd, _config.HotKeyModifiers, _config.HotKey);
-
-            if (!success)
-            {
-                MessageBox.Show(_window,
-                    $"热键 {HotKeyName} 注册失败，可能已被其他程序占用。",
-                    "热键冲突",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-            }
-            else
-            {
-                SaveConfig();
-                OnPropertyChanged(nameof(HotKeyName));
-            }
-        }
-    }
-
-    public void OpenUrl(string url)
-    {
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = url,
-                UseShellExecute = true
-            });
-        }
-        catch { }
+        _saveTimer?.Stop();
+        _configService.Save(Config);
     }
 
     // ==================== 私有方法 ====================
+
+    partial void OnSelectedProfileChanged(ConfigProfile? value)
+    {
+        DeleteProfileCommand.NotifyCanExecuteChanged();
+        if (value != null)
+        {
+            ApplyProfile(value);
+        }
+    }
+
+    private void ApplyProfile(ConfigProfile profile)
+    {
+        Config.Interval = profile.Interval;
+        Config.RandomDelay = profile.RandomDelay;
+        Config.Button = profile.Button;
+        Config.Mode = profile.Mode;
+        IsUnlimited = profile.ClickLimit == 0;
+        Config.ClickLimit = profile.ClickLimit;
+    }
+
+    private bool RegisterHotKey()
+    {
+        if (_window == null) return false;
+
+        var hwnd = new WindowInteropHelper(_window).Handle;
+        bool success = _hotKeyService.Register(hwnd, Config.HotKeyModifiers, Config.HotKey);
+
+        if (!success)
+        {
+            ShowWarning(WarningKind.HotKey, $"热键 {HotKeyName} 注册失败，可能已被其他程序占用，请更换。");
+        }
+        else if (_warningKind == WarningKind.HotKey)
+        {
+            ClearWarning();
+        }
+        return success;
+    }
+
+    private void ShowWarning(WarningKind kind, string message)
+    {
+        _warningKind = kind;
+        WarningMessage = message;
+    }
+
+    private void ClearWarning()
+    {
+        _warningKind = WarningKind.None;
+        WarningMessage = null;
+    }
+
+    private void OnConfigPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        ScheduleSave();
+    }
+
+    private void ScheduleSave()
+    {
+        if (_disposed || _saveTimer == null) return;
+        _saveTimer.Stop();
+        _saveTimer.Start();
+    }
+
+    private void OnSaveTimerTick(object? sender, EventArgs e)
+    {
+        _saveTimer?.Stop();
+        _configService.Save(Config);
+    }
 
     private void OnTimerTick(object? sender, EventArgs e)
     {
@@ -329,17 +437,42 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(TotalClicksText));
         OnPropertyChanged(nameof(DurationText));
         OnPropertyChanged(nameof(CpsText));
+        OnPropertyChanged(nameof(TrayToolTip));
     }
 
-    protected void OnPropertyChanged([CallerMemberName] string? name = null)
+    private void NotifyRunningStateChanged()
     {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        OnPropertyChanged(nameof(IsRunning));
+        OnPropertyChanged(nameof(IsNotRunning));
+        OnPropertyChanged(nameof(ButtonText));
+        OnPropertyChanged(nameof(ToggleMenuText));
+        OnPropertyChanged(nameof(TrayToolTip));
+    }
+
+    private void OpenUrl(string url)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch { }
     }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
+
+        if (_saveTimer != null)
+        {
+            _saveTimer.Tick -= OnSaveTimerTick;
+            _saveTimer.Stop();
+            _saveTimer = null;
+        }
 
         if (_uiTimer != null)
         {
@@ -348,72 +481,14 @@ public class MainWindowViewModel : INotifyPropertyChanged, IDisposable
             _uiTimer = null;
         }
 
+        Config.PropertyChanged -= OnConfigPropertyChanged;
         _clickService.OnClick -= OnClickPerformed;
         if (_onStartedHandler != null) _clickService.OnStarted -= _onStartedHandler;
         if (_onStoppedHandler != null) _clickService.OnStopped -= _onStoppedHandler;
-        _hotKeyService.OnHotKeyPressed -= ToggleClicking;
+        if (_onBlockedHandler != null) _clickService.OnClickBlocked -= _onBlockedHandler;
+        _hotKeyService.OnHotKeyPressed -= Toggle;
 
         _hotKeyService.Dispose();
         _clickService.Dispose();
-    }
-}
-
-/// <summary>
-/// 简单的 RelayCommand 实现
-/// </summary>
-public class RelayCommand : ICommand
-{
-    private readonly Action _execute;
-    private readonly Func<bool>? _canExecute;
-
-    public RelayCommand(Action execute, Func<bool>? canExecute = null)
-    {
-        _execute = execute;
-        _canExecute = canExecute;
-    }
-
-    public event EventHandler? CanExecuteChanged
-    {
-        add { CommandManager.RequerySuggested += value; }
-        remove { CommandManager.RequerySuggested -= value; }
-    }
-
-    public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
-
-    public void Execute(object? parameter) => _execute();
-}
-
-public class RelayCommand<T> : ICommand
-{
-    private readonly Action<T?> _execute;
-    private readonly Func<T?, bool>? _canExecute;
-
-    public RelayCommand(Action<T?> execute, Func<T?, bool>? canExecute = null)
-    {
-        _execute = execute;
-        _canExecute = canExecute;
-    }
-
-    public event EventHandler? CanExecuteChanged
-    {
-        add { CommandManager.RequerySuggested += value; }
-        remove { CommandManager.RequerySuggested -= value; }
-    }
-
-    public bool CanExecute(object? parameter)
-    {
-        if (parameter is not T typedParam)
-            return _canExecute?.Invoke(default) ?? true;
-        return _canExecute?.Invoke(typedParam) ?? true;
-    }
-
-    public void Execute(object? parameter)
-    {
-        if (parameter is not T typedParam)
-        {
-            _execute(default);
-            return;
-        }
-        _execute(typedParam);
     }
 }

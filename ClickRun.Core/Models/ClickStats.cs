@@ -2,13 +2,21 @@ namespace ClickRun.Core.Models;
 
 /// <summary>
 /// 点击统计模型 - 使用 Interlocked 保证线程安全
+/// CPS 采用滑动窗口（近 2 秒）计算实时速度
 /// </summary>
 public class ClickStats
 {
+    /// <summary>
+    /// CPS 滑动窗口长度（毫秒）
+    /// </summary>
+    private const long CpsWindowMs = 2000;
+
     private long _totalClicks;
     private long _sessionClicks;
-    private double _clicksPerSecond;
     private DateTime? _sessionStartTime;
+
+    private readonly object _windowLock = new();
+    private readonly Queue<long> _recentClicks = new();
 
     /// <summary>
     /// 总点击次数（线程安全）
@@ -26,12 +34,24 @@ public class ClickStats
     public DateTime? SessionStartTime => _sessionStartTime;
 
     /// <summary>
-    /// 当前点击速度（次/秒）- volatile 保证可见性
+    /// 实时点击速度（次/秒）- 近 2 秒滑动窗口
     /// </summary>
     public double ClicksPerSecond
     {
-        get => Volatile.Read(ref _clicksPerSecond);
-        private set => Volatile.Write(ref _clicksPerSecond, value);
+        get
+        {
+            lock (_windowLock)
+            {
+                long now = Environment.TickCount64;
+                TrimWindow(now);
+
+                if (_recentClicks.Count < 2)
+                    return 0;
+
+                long span = now - _recentClicks.Peek();
+                return span > 0 ? (_recentClicks.Count - 1) * 1000.0 / span : 0;
+            }
+        }
     }
 
     /// <summary>
@@ -41,7 +61,7 @@ public class ClickStats
     public bool IsRunning
     {
         get => _isRunning;
-        set => _isRunning = value;
+        internal set => _isRunning = value;
     }
 
     /// <summary>
@@ -71,7 +91,10 @@ public class ClickStats
     {
         Interlocked.Exchange(ref _sessionClicks, 0);
         _sessionStartTime = null;
-        ClicksPerSecond = 0;
+        lock (_windowLock)
+        {
+            _recentClicks.Clear();
+        }
     }
 
     /// <summary>
@@ -81,7 +104,11 @@ public class ClickStats
     {
         Interlocked.Exchange(ref _sessionClicks, 0);
         _sessionStartTime = DateTime.Now;
-        IsRunning = true;
+        lock (_windowLock)
+        {
+            _recentClicks.Clear();
+        }
+        _isRunning = true;
     }
 
     /// <summary>
@@ -89,7 +116,7 @@ public class ClickStats
     /// </summary>
     public void StopSession()
     {
-        IsRunning = false;
+        _isRunning = false;
     }
 
     /// <summary>
@@ -100,16 +127,22 @@ public class ClickStats
         Interlocked.Increment(ref _sessionClicks);
         Interlocked.Increment(ref _totalClicks);
 
-        // 计算CPS
-        var startTime = _sessionStartTime;
-        if (startTime.HasValue)
+        lock (_windowLock)
         {
-            var elapsed = (DateTime.Now - startTime.Value).TotalSeconds;
-            if (elapsed > 0)
-            {
-                var clicks = Interlocked.Read(ref _sessionClicks);
-                ClicksPerSecond = clicks / elapsed;
-            }
+            long now = Environment.TickCount64;
+            _recentClicks.Enqueue(now);
+            TrimWindow(now);
+        }
+    }
+
+    /// <summary>
+    /// 剔除窗口之外的点击时间戳（调用方需持有 _windowLock）
+    /// </summary>
+    private void TrimWindow(long now)
+    {
+        while (_recentClicks.Count > 0 && now - _recentClicks.Peek() > CpsWindowMs)
+        {
+            _recentClicks.Dequeue();
         }
     }
 }

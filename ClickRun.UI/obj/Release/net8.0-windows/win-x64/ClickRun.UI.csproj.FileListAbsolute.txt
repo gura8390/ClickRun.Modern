@@ -9,8 +9,12 @@ D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\bin\Release\net8.0-windows\win-x64
 D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\bin\Release\net8.0-windows\win-x64\ClickRun.Core.pdb
 D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\ClickRun.UI.csproj.AssemblyReference.cache
 D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\Themes\MagazineTheme.baml
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\Views\HotKeySelectionWindow.baml
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\Views\SaveProfileDialog.baml
 D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\App.baml
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\Views\HotKeySelectionWindow.g.cs
 D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\Views\MainWindow.g.cs
+D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\Views\SaveProfileDialog.g.cs
 D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\App.g.cs
 D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\ClickRun.Modern_MarkupCompile.cache
 D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\ClickRun.Modern_MarkupCompile.lref
@@ -26,5 +30,3 @@ D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64
 D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\ClickRun.Modern.pdb
 D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\ClickRun.UI.genruntimeconfig.cache
 D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\ref\ClickRun.Modern.dll
-D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\Views\HotKeySelectionWindow.baml
-D:\codex\ClickRun\ClickRun.Modern\ClickRun.UI\obj\Release\net8.0-windows\win-x64\Views\HotKeySelectionWindow.g.cs

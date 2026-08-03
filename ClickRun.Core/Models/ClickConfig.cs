@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace ClickRun.Core.Models;
 
@@ -23,69 +23,115 @@ public enum ClickMode
 }
 
 /// <summary>
-/// 应用配置模型
+/// 应用配置模型 - ObservableObject 支持变更通知（用于防抖保存）
 /// </summary>
-public class ClickConfig
+public partial class ClickConfig : ObservableObject
 {
     /// <summary>
     /// 热键键码（默认F6 = 117）
     /// </summary>
-    public int HotKey { get; set; } = 117;
+    [ObservableProperty]
+    private int _hotKey = 117;
 
     /// <summary>
     /// 热键修饰键（0=无, 1=Alt, 2=Ctrl, 4=Shift, 8=Win）
     /// </summary>
-    public int HotKeyModifiers { get; set; } = 0;
+    [ObservableProperty]
+    private int _hotKeyModifiers = 0;
 
     /// <summary>
     /// 鼠标按键
     /// </summary>
-    public MouseButton Button { get; set; } = MouseButton.Left;
+    [ObservableProperty]
+    private MouseButton _button = MouseButton.Left;
 
     /// <summary>
     /// 点击间隔（毫秒）
     /// </summary>
-    public int Interval { get; set; } = 100;
+    [ObservableProperty]
+    private int _interval = 100;
 
     /// <summary>
     /// 随机延迟百分比（0-50）
     /// </summary>
-    public int RandomDelay { get; set; } = 0;
+    [ObservableProperty]
+    private int _randomDelay = 0;
 
     /// <summary>
     /// 点击模式
     /// </summary>
-    public ClickMode Mode { get; set; } = ClickMode.Single;
+    [ObservableProperty]
+    private ClickMode _mode = ClickMode.Single;
 
     /// <summary>
     /// 点击次数限制（0=无限）
     /// </summary>
-    public int ClickLimit { get; set; } = 0;
+    [ObservableProperty]
+    private int _clickLimit = 0;
 
     /// <summary>
     /// 是否开机自启
     /// </summary>
-    public bool StartWithWindows { get; set; } = false;
+    [ObservableProperty]
+    private bool _startWithWindows = false;
 
     /// <summary>
     /// 是否最小化到托盘
     /// </summary>
-    public bool MinimizeToTray { get; set; } = true;
+    [ObservableProperty]
+    private bool _minimizeToTray = true;
 
     /// <summary>
     /// 是否播放音效
     /// </summary>
-    public bool PlaySound { get; set; } = false;
+    [ObservableProperty]
+    private bool _playSound = false;
 
     /// <summary>
     /// 是否窗口置顶
     /// </summary>
-    public bool AlwaysOnTop { get; set; } = false;
+    [ObservableProperty]
+    private bool _alwaysOnTop = false;
 
     /// <summary>
     /// 保存的配置方案列表
     /// </summary>
-    public List<ConfigProfile> Profiles { get; set; } = new();
+    [ObservableProperty]
+    private List<ConfigProfile> _profiles = new();
+
+    // ==================== 边界钳制 ====================
+
+    partial void OnIntervalChanged(int value)
+    {
+        int clamped = Math.Clamp(value, 1, 10000);
+        if (clamped != value) Interval = clamped;
+    }
+
+    partial void OnRandomDelayChanged(int value)
+    {
+        int clamped = Math.Clamp(value, 0, 50);
+        if (clamped != value) RandomDelay = clamped;
+    }
+
+    partial void OnClickLimitChanged(int value)
+    {
+        if (value < 0) ClickLimit = 0;
+    }
+
+    partial void OnHotKeyChanged(int value)
+    {
+        if (value < 0) HotKey = 0;
+    }
+
+    partial void OnButtonChanged(MouseButton value)
+    {
+        if (!Enum.IsDefined(value)) Button = MouseButton.Left;
+    }
+
+    partial void OnModeChanged(ClickMode value)
+    {
+        if (!Enum.IsDefined(value)) Mode = ClickMode.Single;
+    }
 }
 
 /// <summary>

@@ -68,7 +68,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "D:\\codex\\dotnet-sdk\\sdk\\8.0.423/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.423/PortableRuntimeIdentifierGraph.json"
         }
       },
       "runtimes": {
@@ -78,7 +78,7 @@
       }
     },
     "D:\\codex\\ClickRun\\ClickRun.Modern\\ClickRun.UI\\ClickRun.UI.csproj": {
-      "version": "1.0.0",
+      "version": "2.1.0",
       "restore": {
         "projectUniqueName": "D:\\codex\\ClickRun\\ClickRun.Modern\\ClickRun.UI\\ClickRun.UI.csproj",
         "projectName": "ClickRun.Modern",
@@ -148,7 +148,7 @@
               "privateAssets": "none"
             }
           },
-          "runtimeIdentifierGraphPath": "D:\\codex\\dotnet-sdk\\sdk\\8.0.423/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.423/PortableRuntimeIdentifierGraph.json"
         }
       },
       "runtimes": {

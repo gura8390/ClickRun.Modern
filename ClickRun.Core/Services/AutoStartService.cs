@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using Microsoft.Win32;
 
 namespace ClickRun.Core.Services;
@@ -5,6 +6,7 @@ namespace ClickRun.Core.Services;
 /// <summary>
 /// 开机自启动服务 - 双保险策略（注册表 + 启动文件夹快捷方式）
 /// </summary>
+[SupportedOSPlatform("windows")]
 public static class AutoStartService
 {
     private const string AppName = "ClickRun";
@@ -126,7 +128,7 @@ public static class AutoStartService
             var shortcutPath = GetShortcutPath();
             if (!File.Exists(shortcutPath)) return false;
 
-            shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
+            shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!);
             if (shell == null) return false;
 
             shortcut = shell.CreateShortcut(shortcutPath);
@@ -161,7 +163,7 @@ public static class AutoStartService
             var exePath = GetExecutablePath();
             var workingDir = Path.GetDirectoryName(exePath) ?? "";
 
-            shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
+            shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!);
             if (shell == null) return false;
 
             shortcut = shell.CreateShortcut(shortcutPath);

@@ -125,10 +125,15 @@ public partial class MainWindow : Window
     /// </summary>
     private void ShowMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        TrayIcon.Visibility = Visibility.Collapsed; // 隐藏托盘图标
-        Show();
-        WindowState = WindowState.Normal;
-        Activate();
+        ShowFromTray();
+    }
+
+    /// <summary>
+    /// 托盘图标双击 - 显示主窗口
+    /// </summary>
+    private void TrayIcon_TrayMouseDoubleClick(object sender, RoutedEventArgs e)
+    {
+        ShowFromTray();
     }
 
     /// <summary>

@@ -67,36 +67,21 @@ public static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
-    // ==================== 窗口相关 ====================
+    // ==================== 高精度计时器（winmm）====================
 
-    [DllImport("user32.dll")]
-    public static extern IntPtr GetForegroundWindow();
+    /// <summary>
+    /// 申请系统计时器精度（连点期间提升为 1ms）
+    /// </summary>
+    [DllImport("winmm.dll", EntryPoint = "timeBeginPeriod")]
+    public static extern uint TimeBeginPeriod(uint uMilliseconds);
 
-    [DllImport("user32.dll")]
-    public static extern bool SetForegroundWindow(IntPtr hWnd);
+    /// <summary>
+    /// 释放系统计时器精度（必须与 TimeBeginPeriod 配对调用）
+    /// </summary>
+    [DllImport("winmm.dll", EntryPoint = "timeEndPeriod")]
+    public static extern uint TimeEndPeriod(uint uMilliseconds);
 
-    // ==================== DWM 相关（毛玻璃效果）====================
-
-    public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
-    public const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
-    public const int DWMWA_MICA_EFFECT = 1029;
-
-    public enum DWM_SYSTEMBACKDROP_TYPE
-    {
-        DWMSBT_AUTO = 0,
-        DWMSBT_NONE = 1,
-        DWMSBT_MAINWINDOW = 2,    // Mica
-        DWMSBT_TRANSIENTWINDOW = 3, // Acrylic
-        DWMSBT_TABBEDWINDOW = 4   // Tabbed Mica
-    }
-
-    [DllImport("dwmapi.dll")]
-    public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
-
-    [DllImport("dwmapi.dll")]
-    public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref bool attrValue, int attrSize);
-
-    // ==================== 其他 ====================
+    // ==================== 音效相关 ====================
 
     [DllImport("user32.dll")]
     public static extern bool MessageBeep(uint uType);
@@ -174,5 +159,19 @@ public static class NativeMethods
             _ when vk >= 0x41 && vk <= 0x5A => ((char)vk).ToString(),
             _ => $"VK:0x{vk:X2}"
         };
+    }
+
+    /// <summary>
+    /// 格式化组合热键名称，如 "Ctrl+F6"
+    /// </summary>
+    public static string FormatHotKey(int modifiers, int vk)
+    {
+        var parts = new System.Collections.Generic.List<string>(4);
+        if ((modifiers & MOD_CONTROL) != 0) parts.Add("Ctrl");
+        if ((modifiers & MOD_ALT) != 0) parts.Add("Alt");
+        if ((modifiers & MOD_SHIFT) != 0) parts.Add("Shift");
+        if ((modifiers & MOD_WIN) != 0) parts.Add("Win");
+        parts.Add(GetKeyName((uint)vk));
+        return string.Join("+", parts);
     }
 }

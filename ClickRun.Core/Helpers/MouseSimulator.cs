@@ -14,7 +14,8 @@ public static class MouseSimulator
     /// </summary>
     /// <param name="button">鼠标按键</param>
     /// <param name="mode">点击模式</param>
-    public static void Click(MouseButton button, ClickMode mode = ClickMode.Single)
+    /// <returns>所有输入是否完整送达（false 通常表示被 UIPI 拦截）</returns>
+    public static bool Click(MouseButton button, ClickMode mode = ClickMode.Single)
     {
         int clickCount = mode switch
         {
@@ -24,21 +25,27 @@ public static class MouseSimulator
             _ => 1
         };
 
+        bool allDelivered = true;
         for (int i = 0; i < clickCount; i++)
         {
-            SimulateClick(button);
+            if (!SimulateClick(button))
+            {
+                allDelivered = false;
+            }
             // 双击/三击之间需要短暂延迟，否则OS无法识别为双击
             if (i < clickCount - 1)
             {
                 Thread.Sleep(20);
             }
         }
+        return allDelivered;
     }
 
     /// <summary>
     /// 模拟单次鼠标点击
     /// </summary>
-    private static void SimulateClick(MouseButton button)
+    /// <returns>按下与释放是否都成功送达</returns>
+    private static bool SimulateClick(MouseButton button)
     {
         uint downFlag, upFlag;
 
@@ -86,6 +93,8 @@ public static class MouseSimulator
         if (sent < 2)
         {
             System.Diagnostics.Debug.WriteLine($"SendInput: sent {sent}/2, error: {Marshal.GetLastWin32Error()}");
+            return false;
         }
+        return true;
     }
 }

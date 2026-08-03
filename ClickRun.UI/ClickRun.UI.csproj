@@ -8,6 +8,7 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>ClickRun.UI</RootNamespace>
     <AssemblyName>ClickRun.Modern</AssemblyName>
+    <Version>2.1.0</Version>
     <ApplicationIcon>Resources\clickrun.ico</ApplicationIcon>
   </PropertyGroup>
 

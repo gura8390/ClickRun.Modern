@@ -84,9 +84,9 @@ public struct MOUSEINPUT
 }
 ```
 
-**点击实现**:
+**点击实现**（返回送达结果，供 UIPI 拦截感知）:
 ```csharp
-public static void Click(MouseButton button, ClickMode mode = ClickMode.Single)
+public static bool Click(MouseButton button, ClickMode mode = ClickMode.Single)
 {
     int clickCount = mode switch
     {
@@ -96,12 +96,15 @@ public static void Click(MouseButton button, ClickMode mode = ClickMode.Single)
         _ => 1
     };
 
+    bool allDelivered = true;
     for (int i = 0; i < clickCount; i++)
     {
-        SimulateClick(button);
+        if (!SimulateClick(button))
+            allDelivered = false;
         if (i < clickCount - 1)
             Thread.Sleep(20); // 双击/三击间隔
     }
+    return allDelivered; // false 通常表示被 UIPI 拦截（目标窗口权限更高）
 }
 ```
 
@@ -193,43 +196,93 @@ protected override void OnStartup(StartupEventArgs e)
 }
 ```
 
+### 2.5 高精度计时 (timeBeginPeriod + 混合等待)
+
+**文件**: `ClickRun.Core/Helpers/PrecisionDelay.cs`
+
+Windows 默认计时器粒度约 15.6ms，`Thread.Sleep(1)` 实际睡眠约 15ms。
+连点期间通过 winmm API 将系统计时器粒度提升为 1ms（引用计数配对释放）：
+
+```csharp
+[DllImport("winmm.dll", EntryPoint = "timeBeginPeriod")]
+public static extern uint TimeBeginPeriod(uint uMilliseconds);
+
+// ClickService.Start 时 TimerResolution.Acquire()
+// 连点结束时 TimerResolution.Release()（配对调用，恢复系统默认粒度）
+```
+
+等待采用"粗睡 + 自旋"混合策略，兼顾精度与 CPU 占用，且取消即时生效：
+
+```csharp
+public static void Wait(int milliseconds, CancellationToken token)
+{
+    var sw = Stopwatch.StartNew();
+
+    // 粗睡阶段：WaitOne 可被 Cancel 立即唤醒（停止响应 <1ms）
+    int coarse = milliseconds - SpinThresholdMs;
+    if (coarse > 0)
+        token.WaitHandle.WaitOne(coarse);
+
+    // 自旋阶段：补齐尾部 <3ms，期间持续响应取消
+    var spin = new SpinWait();
+    while (sw.ElapsedMilliseconds < milliseconds)
+    {
+        if (token.IsCancellationRequested) return;
+        spin.SpinOnce();
+    }
+}
+```
+
 ---
 
 ## 3. 线程安全设计
 
-### 3.1 点击统计 (Interlocked)
+### 3.1 点击统计 (Interlocked + 滑动窗口)
 
 **文件**: `ClickRun.Core/Models/ClickStats.cs`
 
-使用 `Interlocked` 保证计数器原子性：
+使用 `Interlocked` 保证计数器原子性；CPS 采用近 2 秒滑动窗口计算实时速度：
 
 ```csharp
 private long _sessionClicks;
 private long _totalClicks;
-private volatile double _clicksPerSecond;
+private readonly Queue<long> _recentClicks = new(); // 窗口内点击时间戳
+
+public double ClicksPerSecond
+{
+    get
+    {
+        lock (_windowLock)
+        {
+            long now = Environment.TickCount64;
+            TrimWindow(now); // 剔除 2 秒前的时间戳
+            if (_recentClicks.Count < 2) return 0;
+            long span = now - _recentClicks.Peek();
+            return span > 0 ? (_recentClicks.Count - 1) * 1000.0 / span : 0;
+        }
+    }
+}
 
 public void RecordClick()
 {
     Interlocked.Increment(ref _sessionClicks);
     Interlocked.Increment(ref _totalClicks);
-
-    // 计算 CPS
-    var elapsed = (DateTime.Now - _sessionStartTime.Value).TotalSeconds;
-    if (elapsed > 0)
+    lock (_windowLock)
     {
-        var clicks = Interlocked.Read(ref _sessionClicks);
-        ClicksPerSecond = clicks / elapsed;
+        _recentClicks.Enqueue(Environment.TickCount64);
+        TrimWindow(...);
     }
 }
 ```
 
-### 3.2 点击服务 (lock + CancellationToken)
+### 3.2 点击服务 (lock + CancellationToken + 会话代际)
 
 **文件**: `ClickRun.Core/Services/ClickService.cs`
 
 ```csharp
 private readonly object _lock = new();
 private CancellationTokenSource? _cts;
+private long _generation; // 会话代际号，防止旧线程覆盖新会话状态
 
 public void Start(ClickConfig config, ClickStats stats)
 {
@@ -237,31 +290,46 @@ public void Start(ClickConfig config, ClickStats stats)
     {
         if (IsRunning) return;
         IsRunning = true;
+        long generation = ++_generation;
         _cts = new CancellationTokenSource();
+        // 启动点击线程...
     }
 
     // 在锁外触发事件，避免死锁
     OnStarted?.Invoke();
 }
 
-private void ClickLoop(ClickConfig config, ClickStats stats, CancellationToken token)
+public void Stop()
+{
+    // 锁内取出线程与 CTS，锁外 Cancel + Join
+    ctsToDispose?.Cancel();          // WaitOne 立即唤醒
+    threadToJoin?.Join(3 秒超时);     // 等待线程 finally 收敛状态后才返回
+}
+
+private void ClickLoop(...)
 {
     try
     {
         while (!token.IsCancellationRequested)
         {
-            MouseSimulator.Click(config.Button, config.Mode);
+            clickWatch.Restart();
+            bool delivered = MouseSimulator.Click(config.Button, config.Mode);
+            clickWatch.Stop();
             stats.RecordClick();
-            OnClick?.Invoke();
+            TrackDelivery(delivered); // 连续失败 ≥5 次 → OnClickBlocked
 
-            // 使用 WaitHandle 支持取消
-            token.WaitHandle.WaitOne(delay);
+            // 间隔扣除点击执行耗时（双/三击的 20ms 间隔不再侵蚀 CPS）
+            int delay = config.Interval - (int)clickWatch.ElapsedMilliseconds;
+            PrecisionDelay.Wait(delay, token);
         }
     }
     finally
     {
-        lock (_lock) { IsRunning = false; }
-        OnStopped?.Invoke();
+        // 只有当前代际的线程才能收敛状态、释放计时器粒度并触发 OnStopped
+        lock (_lock)
+        {
+            if (generation == _generation) { IsRunning = false; ... }
+        }
     }
 }
 ```
@@ -274,20 +342,31 @@ private void ClickLoop(ClickConfig config, ClickStats stats, CancellationToken t
 
 **文件**: `ClickRun.Core/Models/ClickConfig.cs`
 
+继承 `ObservableObject`（CommunityToolkit.Mvvm 源生成器），属性变更可通知——
+ViewModel 据此实现 500ms 防抖保存，任何设置变更都会自动落盘：
+
 ```csharp
-public class ClickConfig
+public partial class ClickConfig : ObservableObject
 {
-    public int HotKey { get; set; } = 117;           // F6
-    public int HotKeyModifiers { get; set; } = 0;    // 无修饰键
-    public MouseButton Button { get; set; } = MouseButton.Left;
-    public int Interval { get; set; } = 100;          // 100ms
-    public int RandomDelay { get; set; } = 0;         // 0%
-    public ClickMode Mode { get; set; } = ClickMode.Single;
-    public int ClickLimit { get; set; } = 0;          // 无限
-    public bool StartWithWindows { get; set; } = false;
-    public bool MinimizeToTray { get; set; } = true;
-    public bool PlaySound { get; set; } = false;
-    public bool AlwaysOnTop { get; set; } = false;
+    [ObservableProperty] private int _hotKey = 117;           // F6
+    [ObservableProperty] private int _hotKeyModifiers = 0;    // 无修饰键
+    [ObservableProperty] private MouseButton _button = MouseButton.Left;
+    [ObservableProperty] private int _interval = 100;          // 100ms
+    [ObservableProperty] private int _randomDelay = 0;         // 0%
+    [ObservableProperty] private ClickMode _mode = ClickMode.Single;
+    [ObservableProperty] private int _clickLimit = 0;          // 无限
+    [ObservableProperty] private bool _startWithWindows = false;
+    [ObservableProperty] private bool _minimizeToTray = true;
+    [ObservableProperty] private bool _playSound = false;
+    [ObservableProperty] private bool _alwaysOnTop = false;
+    [ObservableProperty] private List<ConfigProfile> _profiles = new();
+
+    // 边界钳制（源生成器 partial 方法）
+    partial void OnIntervalChanged(int value)
+    {
+        int clamped = Math.Clamp(value, 1, 10000);
+        if (clamped != value) Interval = clamped;
+    }
 }
 ```
 
@@ -521,6 +600,7 @@ if (_onStartedHandler != null) _clickService.OnStarted -= _onStartedHandler;
 | MinimizeToTray | bool | true | - | 最小化到托盘 |
 | PlaySound | bool | false | - | 播放音效 |
 | AlwaysOnTop | bool | false | - | 窗口置顶 |
+| Profiles | list | [] | - | 已保存的配置方案 |
 
 ---
 

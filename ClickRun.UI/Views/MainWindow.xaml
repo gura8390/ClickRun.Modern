@@ -4,11 +4,12 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ClickRun.UI"
+        xmlns:models="clr-namespace:ClickRun.Core.Models;assembly=ClickRun.Core"
         xmlns:tb="http://www.hardcodet.net/taskbar"
         mc:Ignorable="d"
         Title="ClickRun"
-        Height="520" Width="400"
-        MinHeight="480" MinWidth="360"
+        Height="600" Width="400"
+        MinHeight="560" MinWidth="360"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource BackgroundBrush}"
         ResizeMode="CanResize"
@@ -108,6 +109,8 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -129,8 +132,60 @@
                 </Button>
             </Grid>
 
+            <!-- 警示条（默认隐藏，热键冲突/点击被拦截时显示） -->
+            <Border Grid.Row="1"
+                    Visibility="{Binding WarningVisibility}"
+                    BorderBrush="{DynamicResource AccentBrush}"
+                    BorderThickness="1"
+                    Background="{DynamicResource HoverBrush}"
+                    Padding="10,6"
+                    Margin="0,0,0,10"
+                    CornerRadius="2">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding WarningMessage}"
+                               FontFamily="{DynamicResource BodyFont}"
+                               FontSize="12"
+                               Foreground="{DynamicResource AccentBrush}"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center" />
+                    <Button Grid.Column="1"
+                            Style="{DynamicResource IconButtonStyle}"
+                            Command="{Binding DismissWarningCommand}"
+                            Padding="2" Margin="8,0,0,0"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="×" FontSize="14" Foreground="{DynamicResource AccentBrush}" />
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- 方案行 -->
+            <Grid Grid.Row="2" Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="方案" Style="{DynamicResource CaptionStyle}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox ItemsSource="{Binding Profiles}"
+                              DisplayMemberPath="Name"
+                              SelectedItem="{Binding SelectedProfile}"
+                              FontFamily="{DynamicResource BodyFont}"
+                              FontSize="13"
+                              Width="150"
+                              VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Content="存" Style="{DynamicResource SecondaryButton}" Command="{Binding SaveProfileCommand}" Padding="10,4" FontSize="12" Margin="0,0,4,0" />
+                    <Button Content="删" Style="{DynamicResource SecondaryButton}" Command="{Binding DeleteProfileCommand}" Padding="10,4" FontSize="12" />
+                </StackPanel>
+            </Grid>
+
             <!-- 热键+模式行 -->
-            <Grid Grid.Row="1" Margin="0,0,0,6">
+            <Grid Grid.Row="3" Margin="0,0,0,6">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -146,26 +201,26 @@
                     <TextBlock Text="模式" Style="{DynamicResource CaptionStyle}" VerticalAlignment="Center" Margin="0,0,6,0" />
                     <RadioButton Content="单击" Style="{DynamicResource SegmentStyle}" GroupName="Mode" Margin="0,0,3,0">
                         <RadioButton.IsChecked>
-                            <Binding Path="Config.Mode" Mode="TwoWay" Converter="{x:Static local:ClickModeConverter.Single}" />
+                            <Binding Path="Config.Mode" Mode="TwoWay" Converter="{x:Static local:EnumToBoolConverter.Instance}" ConverterParameter="{x:Static models:ClickMode.Single}" />
                         </RadioButton.IsChecked>
                     </RadioButton>
                     <RadioButton Content="双击" Style="{DynamicResource SegmentStyle}" GroupName="Mode" Margin="0,0,3,0">
                         <RadioButton.IsChecked>
-                            <Binding Path="Config.Mode" Mode="TwoWay" Converter="{x:Static local:ClickModeConverter.Double}" />
+                            <Binding Path="Config.Mode" Mode="TwoWay" Converter="{x:Static local:EnumToBoolConverter.Instance}" ConverterParameter="{x:Static models:ClickMode.Double}" />
                         </RadioButton.IsChecked>
                     </RadioButton>
                     <RadioButton Content="三击" Style="{DynamicResource SegmentStyle}" GroupName="Mode">
                         <RadioButton.IsChecked>
-                            <Binding Path="Config.Mode" Mode="TwoWay" Converter="{x:Static local:ClickModeConverter.Triple}" />
+                            <Binding Path="Config.Mode" Mode="TwoWay" Converter="{x:Static local:EnumToBoolConverter.Instance}" ConverterParameter="{x:Static models:ClickMode.Triple}" />
                         </RadioButton.IsChecked>
                     </RadioButton>
                 </StackPanel>
             </Grid>
 
-            <Border Grid.Row="2" Style="{DynamicResource ThinSeparator}" />
+            <Border Grid.Row="4" Style="{DynamicResource ThinSeparator}" />
 
             <!-- 核心设置区 -->
-            <StackPanel Grid.Row="3" Margin="0,2,0,2">
+            <StackPanel Grid.Row="5" Margin="0,2,0,2">
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="60" />
@@ -174,13 +229,13 @@
                     <TextBlock Text="按键" Style="{DynamicResource CaptionStyle}" VerticalAlignment="Center" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                         <RadioButton Content="左键" Style="{DynamicResource SegmentStyle}" GroupName="Button" Margin="0,0,4,0">
-                            <RadioButton.IsChecked><Binding Path="Config.Button" Mode="TwoWay" Converter="{x:Static local:EnumConverter.Left}" /></RadioButton.IsChecked>
+                            <RadioButton.IsChecked><Binding Path="Config.Button" Mode="TwoWay" Converter="{x:Static local:EnumToBoolConverter.Instance}" ConverterParameter="{x:Static models:MouseButton.Left}" /></RadioButton.IsChecked>
                         </RadioButton>
                         <RadioButton Content="右键" Style="{DynamicResource SegmentStyle}" GroupName="Button" Margin="0,0,4,0">
-                            <RadioButton.IsChecked><Binding Path="Config.Button" Mode="TwoWay" Converter="{x:Static local:EnumConverter.Right}" /></RadioButton.IsChecked>
+                            <RadioButton.IsChecked><Binding Path="Config.Button" Mode="TwoWay" Converter="{x:Static local:EnumToBoolConverter.Instance}" ConverterParameter="{x:Static models:MouseButton.Right}" /></RadioButton.IsChecked>
                         </RadioButton>
                         <RadioButton Content="中键" Style="{DynamicResource SegmentStyle}" GroupName="Button">
-                            <RadioButton.IsChecked><Binding Path="Config.Button" Mode="TwoWay" Converter="{x:Static local:EnumConverter.Middle}" /></RadioButton.IsChecked>
+                            <RadioButton.IsChecked><Binding Path="Config.Button" Mode="TwoWay" Converter="{x:Static local:EnumToBoolConverter.Instance}" ConverterParameter="{x:Static models:MouseButton.Middle}" /></RadioButton.IsChecked>
                         </RadioButton>
                     </StackPanel>
                 </Grid>
@@ -191,10 +246,11 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="间隔" Style="{DynamicResource CaptionStyle}" VerticalAlignment="Center" />
-                    <Slider Grid.Column="1" Style="{DynamicResource SliderStyle}" Minimum="1" Maximum="10000" TickFrequency="50" Value="{Binding Config.Interval, Mode=TwoWay}" Margin="0,0,8,0" />
+                    <Slider Grid.Column="1" Style="{DynamicResource SliderStyle}" Minimum="1" Maximum="10000" TickFrequency="10" IsSnapToTickEnabled="True" Value="{Binding Config.Interval, Mode=TwoWay}" Margin="0,0,8,0" />
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Config.Interval}" Style="{DynamicResource DataStyle}" />
-                        <TextBlock Text=" ms" Style="{DynamicResource CaptionStyle}" />
+                        <TextBox Style="{DynamicResource TextBoxStyle}" Width="64" Padding="6,2" FontSize="13"
+                                 Text="{Binding Config.Interval, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text=" ms" Style="{DynamicResource CaptionStyle}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Grid>
                 <Grid Margin="0,0,0,8">
@@ -204,7 +260,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="随机" Style="{DynamicResource CaptionStyle}" VerticalAlignment="Center" />
-                    <Slider Grid.Column="1" Style="{DynamicResource SliderStyle}" Minimum="0" Maximum="50" TickFrequency="5" Value="{Binding Config.RandomDelay, Mode=TwoWay}" Margin="0,0,8,0" />
+                    <Slider Grid.Column="1" Style="{DynamicResource SliderStyle}" Minimum="0" Maximum="50" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding Config.RandomDelay, Mode=TwoWay}" Margin="0,0,8,0" />
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="±" Style="{DynamicResource CaptionStyle}" />
                         <TextBlock Text="{Binding Config.RandomDelay}" Style="{DynamicResource DataStyle}" />
@@ -226,15 +282,15 @@
                 </Grid>
             </StackPanel>
 
-            <Border Grid.Row="4" Style="{DynamicResource ThinSeparator}" />
-
-            <!-- 开始按钮 -->
-            <Button Grid.Row="5" Content="{Binding ButtonText}" Style="{StaticResource ToggleButtonStyle}" Command="{Binding ToggleCommand}" Margin="0,4,0,4" />
-
             <Border Grid.Row="6" Style="{DynamicResource ThinSeparator}" />
 
+            <!-- 开始按钮 -->
+            <Button Grid.Row="7" Content="{Binding ButtonText}" Style="{StaticResource ToggleButtonStyle}" Command="{Binding ToggleCommand}" Margin="0,4,0,4" />
+
+            <Border Grid.Row="8" Style="{DynamicResource ThinSeparator}" />
+
             <!-- 统计区 -->
-            <Grid Grid.Row="7" Margin="0,2,0,0">
+            <Grid Grid.Row="9" Margin="0,2,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
@@ -341,7 +397,7 @@
                 <Grid Margin="0,0,0,10">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                     <TextBlock Text="版本" Style="{DynamicResource BodyStyle}" />
-                    <TextBlock Grid.Column="1" Text="v2.0" Style="{DynamicResource DataStyle}" />
+                    <TextBlock Grid.Column="1" Text="{Binding VersionText}" Style="{DynamicResource DataStyle}" />
                 </Grid>
                 <Button Content="项目主页 →" Style="{DynamicResource SecondaryButton}" Command="{Binding OpenProjectUrlCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,0,0,6" />
                 <Button Content="GitHub →" Style="{DynamicResource SecondaryButton}" Command="{Binding OpenGitHubUrlCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
@@ -350,12 +406,15 @@
 
         <!-- 系统托盘图标 -->
         <tb:TaskbarIcon x:Name="TrayIcon"
-                        ToolTipText="ClickRun - 鼠标连点器"
-                        DoubleClickCommand="{Binding ToggleCommand}"
+                        ToolTipText="{Binding TrayToolTip}"
+                        Tag="{Binding}"
+                        TrayMouseDoubleClick="TrayIcon_TrayMouseDoubleClick"
                         Visibility="Collapsed">
             <tb:TaskbarIcon.ContextMenu>
                 <ContextMenu>
                     <MenuItem Header="显示主窗口" Click="ShowMenuItem_Click" />
+                    <MenuItem Header="{Binding PlacementTarget.Tag.ToggleMenuText, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                              Command="{Binding PlacementTarget.Tag.ToggleCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                     <Separator />
                     <MenuItem Header="退出" Click="ExitMenuItem_Click" />
                 </ContextMenu>

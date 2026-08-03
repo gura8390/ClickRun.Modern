@@ -2,7 +2,7 @@
 
 > 现代化的鼠标连点器，采用杂志风设计，基于 .NET 8 + WPF 构建
 
-![Version](https://img.shields.io/badge/version-v2.0-blue)
+![Version](https://img.shields.io/badge/version-v2.1-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)
 ![.NET](https://img.shields.io/badge/.NET-8.0-purple)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -12,21 +12,24 @@
 ### 核心功能
 - 🖱️ **多按键支持** — 左键、右键、中键
 - ⚡ **多种点击模式** — 单击、双击、三击
-- ⏱️ **精确间隔控制** — 1ms 到 10000ms，滑块调节
+- ⏱️ **高精度间隔** — 1ms 到 10000ms，timeBeginPeriod + 混合精度等待，真实毫秒级
 - 🎲 **随机延迟** — 0% 到 50%，模拟人工操作
 - 🔢 **次数限制** — 无限模式或指定次数
-- ⌨️ **全局热键** — F1-F12 任意键，一键启停
+- ⌨️ **全局热键** — F1-F12 / 字母 / 数字，可配合 Ctrl / Alt / Shift，一键启停
+- 📁 **配置方案** — 多套参数命名保存，一键切换
 
 ### 系统集成
-- 📌 **系统托盘** — 最小化到托盘，后台运行
+- 📌 **系统托盘** — 最小化到托盘，Tooltip 实时显示运行状态
 - 🚀 **开机自启** — 双保险策略（注册表 + 启动文件夹）
 - 📌 **窗口置顶** — 始终显示在最上层
 - 🔒 **单实例保护** — 防止重复启动
+- 💾 **自动保存** — 设置变更 500ms 防抖落盘，不惧意外退出
 
 ### 界面设计
 - 📖 **杂志风 UI** — 方正公文楷体标题，简洁优雅
 - ⚙️ **独立设置页面** — 齿轮图标进入，清晰分类
-- 📊 **实时统计** — 已点击、运行时长、CPS、总点击
+- 📊 **实时统计** — 已点击、运行时长、实时 CPS（2 秒滑动窗口）、总点击
+- ⚠️ **非模态警示** — 热键冲突、点击被拦截时顶部警示条提示
 
 ## 📸 界面预览
 
@@ -35,10 +38,11 @@
 │  ClickRun                           [⚙]    │
 │  鼠标连点器                                  │
 ├─────────────────────────────────────────────┤
-│  热键 [F6] [修改]     模式 [单击][双击][三击] │
+│  方案 [默认    ▾] [存] [删]                  │
+│  热键 [Ctrl+F6] [修改]  模式 [单击][双击][三击]│
 ├─────────────────────────────────────────────┤
 │  按键   [左键] [右键] [中键]                 │
-│  间隔   ═══════════●═══════  100 ms         │
+│  间隔   ═══════════●═══════  [ 100] ms      │
 │  随机   ═══════════════●═══  ± 0 %          │
 │  次数   [无限] [指定] [____] 次              │
 ├─────────────────────────────────────────────┤
@@ -92,8 +96,14 @@ dotnet publish ClickRun.UI -c Release -r win-x64 --self-contained false -o publi
 ### 修改热键
 
 1. 点击主界面热键旁的"修改"按钮
-2. 在弹出窗口中选择 F1-F12 任意键
-3. 热键立即生效
+2. 在弹出窗口中**直接按下**想要的热键组合（支持 F1-F12 / 字母 / 数字，可配合 Ctrl / Alt / Shift）
+3. 点击"确定"，热键立即生效；Esc 取消
+
+### 配置方案
+
+1. 调好参数后点击方案行的"存"按钮，输入名称保存
+2. 在下拉框中选择方案即可一键应用整套参数
+3. 选中方案后点击"删"可删除
 
 ### 设置页面
 
@@ -110,8 +120,9 @@ dotnet publish ClickRun.UI -c Release -r win-x64 --self-contained false -o publi
 
 开启"最小化到托盘"后：
 - 关闭窗口 → 隐藏到托盘
-- 双击托盘图标 → 切换连点状态
-- 右键托盘图标 → 显示主窗口 / 退出
+- 双击托盘图标 → 显示主窗口
+- 右键托盘图标 → 显示主窗口 / 开始·停止连点 / 退出
+- 托盘 Tooltip 实时显示运行状态与点击次数
 
 ## ⚙️ 配置文件
 
@@ -120,7 +131,7 @@ dotnet publish ClickRun.UI -c Release -r win-x64 --self-contained false -o publi
 ```json
 {
   "hotKey": 117,
-  "hotKeyModifiers": 0,
+  "hotKeyModifiers": 2,
   "button": 0,
   "interval": 100,
   "randomDelay": 0,
@@ -130,7 +141,9 @@ dotnet publish ClickRun.UI -c Release -r win-x64 --self-contained false -o publi
   "minimizeToTray": true,
   "playSound": false,
   "alwaysOnTop": false,
-  "profiles": []
+  "profiles": [
+    { "name": "游戏挂机", "interval": 50, "randomDelay": 10, "button": 0, "mode": 0, "clickLimit": 0 }
+  ]
 }
 ```
 
