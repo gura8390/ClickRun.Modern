@@ -1,190 +1,60 @@
-# ClickRun Modern
+# ClickRun Modern · Windows 鼠标连点器
 
-> 现代化的鼠标连点器，采用杂志风设计，基于 .NET 8 + WPF 构建
+使用 C#、.NET 8 和 WPF 编写的鼠标连点工具，支持全局热键、参数方案与系统托盘。A Windows auto-clicker built with .NET 8 and WPF.
 
-![Version](https://img.shields.io/badge/version-v2.1-blue)
-![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)
-![.NET](https://img.shields.io/badge/.NET-8.0-purple)
-![License](https://img.shields.io/badge/license-MIT-green)
+当前源码项目版本为 **2.1.0**，以 `ClickRun.UI/ClickRun.UI.csproj` 为准。以下分别提供现有下载入口和源码构建方法。
 
-## ✨ 特性
+## 下载与启动
 
-### 核心功能
-- 🖱️ **多按键支持** — 左键、右键、中键
-- ⚡ **多种点击模式** — 单击、双击、三击
-- ⏱️ **高精度间隔** — 1ms 到 10000ms，timeBeginPeriod + 混合精度等待，真实毫秒级
-- 🎲 **随机延迟** — 0% 到 50%，模拟人工操作
-- 🔢 **次数限制** — 无限模式或指定次数
-- ⌨️ **全局热键** — F1-F12 / 字母 / 数字，可配合 Ctrl / Alt / Shift，一键启停
-- 📁 **配置方案** — 多套参数命名保存，一键切换
+前往 [Windows 下载页](https://github.com/gura8390/ClickRun.Modern/releases/latest) 获取现有 `ClickRun.Modern.exe`。目前保留的 Release tag 是 `Publish`；该历史二进制的内部版本尚未核验。
 
-### 系统集成
-- 📌 **系统托盘** — 最小化到托盘，Tooltip 实时显示运行状态
-- 🚀 **开机自启** — 双保险策略（注册表 + 启动文件夹）
-- 📌 **窗口置顶** — 始终显示在最上层
-- 🔒 **单实例保护** — 防止重复启动
-- 💾 **自动保存** — 设置变更 500ms 防抖落盘，不惧意外退出
+源码目标为 Windows 和 .NET 8。运行非自包含构建时需要 **.NET 8 Desktop Runtime**。如历史单文件下载缺少运行依赖，可按下文从源码构建完整发布目录。
 
-### 界面设计
-- 📖 **杂志风 UI** — 方正公文楷体标题，简洁优雅
-- ⚙️ **独立设置页面** — 齿轮图标进入，清晰分类
-- 📊 **实时统计** — 已点击、运行时长、实时 CPS（2 秒滑动窗口）、总点击
-- ⚠️ **非模态警示** — 热键冲突、点击被拦截时顶部警示条提示
+## 主要功能
 
-## 📸 界面预览
+- 左键、右键、中键，以及单击、双击、三击模式。
+- 点击间隔、随机延迟和指定次数。
+- 全局热键启停，支持组合键。
+- 保存多套参数方案，自动保存设置。
+- 系统托盘、窗口置顶、单实例及开机自启设置。
+- 显示点击次数、运行时间与点击速度。
 
-```
-┌─────────────────────────────────────────────┐
-│  ClickRun                           [⚙]    │
-│  鼠标连点器                                  │
-├─────────────────────────────────────────────┤
-│  方案 [默认    ▾] [存] [删]                  │
-│  热键 [Ctrl+F6] [修改]  模式 [单击][双击][三击]│
-├─────────────────────────────────────────────┤
-│  按键   [左键] [右键] [中键]                 │
-│  间隔   ═══════════●═══════  [ 100] ms      │
-│  随机   ═══════════════●═══  ± 0 %          │
-│  次数   [无限] [指定] [____] 次              │
-├─────────────────────────────────────────────┤
-│          [▶  开始连点]                       │
-├─────────────────────────────────────────────┤
-│  已点击        运行时长                      │
-│  1,234         00:02:15                     │
-│  点击速度      总点击次数                    │
-│  12.3 次/秒    5,678                        │
-└─────────────────────────────────────────────┘
-```
+## 使用步骤
 
-## 🚀 快速开始
+1. 选择按键、点击模式、间隔和次数，按需设置随机延迟。
+2. 确认界面显示的启停热键，点击开始或使用热键启动。
+3. 再次点击停止或使用同一热键结束；离开目标程序前先停止连点。
+4. 需要复用参数时保存为方案；托盘和开机启动选项在设置中调整。
 
-### 系统要求
+## 从源码构建
 
-- Windows 10/11 (x64)
-- .NET 8.0 Desktop Runtime
+安装 Windows 上的 .NET 8 SDK，然后执行：
 
-### 下载安装
-
-1. 从 [Releases](https://github.com/gura8390/ClickRun.Modern/releases) 下载最新版本
-2. 解压到任意目录
-3. 运行 `ClickRun.Modern.exe`
-
-### 从源码构建
-
-```bash
-# 克隆仓库
+```powershell
 git clone https://github.com/gura8390/ClickRun.Modern.git
-cd clickrun/ClickRun.Modern
-
-# 构建项目
-dotnet build
-
-# 运行
-dotnet run --project ClickRun.UI
-
-# 发布
-dotnet publish ClickRun.UI -c Release -r win-x64 --self-contained false -o publish
+cd ClickRun.Modern
+dotnet build ClickRun.sln -c Release
+dotnet run --project ClickRun.UI -c Release
 ```
 
-## 📖 使用说明
+发布一个不依赖预装 .NET Runtime 的 win-x64 目录：
 
-### 基本操作
-
-1. **设置参数** — 选择鼠标按键、点击模式、调节间隔
-2. **开始连点** — 点击"开始连点"按钮或按下热键（默认 F6）
-3. **停止连点** — 再次按下热键或点击"停止"按钮
-
-### 修改热键
-
-1. 点击主界面热键旁的"修改"按钮
-2. 在弹出窗口中**直接按下**想要的热键组合（支持 F1-F12 / 字母 / 数字，可配合 Ctrl / Alt / Shift）
-3. 点击"确定"，热键立即生效；Esc 取消
-
-### 配置方案
-
-1. 调好参数后点击方案行的"存"按钮，输入名称保存
-2. 在下拉框中选择方案即可一键应用整套参数
-3. 选中方案后点击"删"可删除
-
-### 设置页面
-
-点击右上角齿轮图标进入设置：
-
-| 设置项 | 说明 |
-|--------|------|
-| 开机自启动 | Windows 启动时自动运行 |
-| 最小化到托盘 | 关闭窗口时隐藏到系统托盘 |
-| 窗口置顶 | 窗口始终显示在最上层 |
-| 播放音效 | 开始/停止时播放提示音 |
-
-### 系统托盘
-
-开启"最小化到托盘"后：
-- 关闭窗口 → 隐藏到托盘
-- 双击托盘图标 → 显示主窗口
-- 右键托盘图标 → 显示主窗口 / 开始·停止连点 / 退出
-- 托盘 Tooltip 实时显示运行状态与点击次数
-
-## ⚙️ 配置文件
-
-配置自动保存在：`%AppData%\ClickRun\config.json`
-
-```json
-{
-  "hotKey": 117,
-  "hotKeyModifiers": 2,
-  "button": 0,
-  "interval": 100,
-  "randomDelay": 0,
-  "mode": 0,
-  "clickLimit": 0,
-  "startWithWindows": false,
-  "minimizeToTray": true,
-  "playSound": false,
-  "alwaysOnTop": false,
-  "profiles": [
-    { "name": "游戏挂机", "interval": 50, "randomDelay": 10, "button": 0, "mode": 0, "clickLimit": 0 }
-  ]
-}
+```powershell
+dotnet publish ClickRun.UI -c Release -r win-x64 --self-contained true -o artifacts/win-x64
 ```
 
-## 🛠️ 技术栈
+分发时保留整个输出目录，不要只复制其中的 EXE。
 
-| 技术 | 用途 |
-|------|------|
-| .NET 8.0 | 运行时框架 |
-| WPF | UI 框架 |
-| MVVM | 架构模式 |
-| P/Invoke | Win32 API 调用 |
-| COM Interop | 创建快捷方式 |
-| System.Text.Json | 配置序列化 |
+## 代码结构
 
-## 📁 项目结构
+- `ClickRun.Core/`：模型、点击服务与系统辅助逻辑。
+- `ClickRun.UI/`：WPF 窗口、ViewModel、主题和资源。
+- `ClickRun.sln`：解决方案。
+- `publish/`：保留的历史发布输出。
+- [TECHNICAL.md](TECHNICAL.md)：现有实现的技术参考。
 
-```
-ClickRun.Modern/
-├── ClickRun.sln                    # 解决方案
-├── ClickRun.Core/                  # 核心逻辑层
-│   ├── Models/                     # 数据模型
-│   ├── Services/                   # 业务服务
-│   └── Helpers/                    # 工具类
-├── ClickRun.UI/                    # UI 层
-│   ├── Views/                      # 窗口
-│   ├── ViewModels/                 # 视图模型
-│   ├── Themes/                     # 主题样式
-│   ├── Fonts/                      # 字体资源
-│   └── Resources/                  # 图标资源
-└── publish/                        # 发布输出
-```
+`bin/obj` 是本地自动生成的编译缓存，不提交版本库。
 
-## 📄 许可证
+## 许可与致谢
 
-MIT License
-
-## 🙏 致谢
-
-- [Hardcodet.NotifyIcon.Wpf](https://github.com/hardcodet/wpf-notifyicon) — 系统托盘支持
-- [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) — MVVM 工具包
-
----
-
-**ClickRun Modern** — 简洁、高效、优雅的鼠标连点器
+[MIT License](LICENSE)。感谢 [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) 和 [Hardcodet.NotifyIcon.Wpf](https://github.com/hardcodet/wpf-notifyicon) 等依赖项目。

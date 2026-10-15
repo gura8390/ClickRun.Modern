@@ -1,0 +1,7 @@
+# Repository hygiene: generated and machine-local files.
+**/bin/
+**/obj/
+.vs/
+artifacts/
+*.user
+*.suo
