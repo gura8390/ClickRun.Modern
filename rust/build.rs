@@ -12,6 +12,13 @@ fn main() -> io::Result<()> {
         PathBuf::from(env::var_os("OUT_DIR").expect("Cargo OUT_DIR")).join("application.res");
     fs::write(&path, resources())?;
     println!("cargo:rustc-link-arg-bin=liandianqi={}", path.display());
+    if env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+        // Keep the full UIA provider available, loading its DLL transparently on
+        // the first Uia* call rather than when the application image is loaded.
+        // Apply both flags only to the final application, not test binaries.
+        println!("cargo:rustc-link-arg-bin=liandianqi=/DELAYLOAD:uiautomationcore.dll");
+        println!("cargo:rustc-link-arg-bin=liandianqi=/DEFAULTLIB:delayimp.lib");
+    }
     Ok(())
 }
 fn align4(output: &mut Vec<u8>) {
@@ -62,8 +69,8 @@ fn version_resource() -> Vec<u8> {
     let values = [
         ("FileDescription", "连点器 Modern"),
         ("ProductName", "连点器 Modern"),
-        ("FileVersion", "3.0.0"),
-        ("ProductVersion", "3.0.0"),
+        ("FileVersion", "3.0.1"),
+        ("ProductVersion", "3.0.1"),
         ("InternalName", "liandianqi"),
         ("OriginalFilename", "连点器 Modern.exe"),
     ];
@@ -82,9 +89,9 @@ fn version_resource() -> Vec<u8> {
         0xFEEF04BDu32,
         0x00010000,
         0x00030000,
-        0,
+        0x00010000,
         0x00030000,
-        0,
+        0x00010000,
         0x3f,
         0,
         0x00040004,

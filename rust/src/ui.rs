@@ -5,7 +5,7 @@ use crate::{
     system,
 };
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
     collections::BTreeMap,
     ffi::c_void,
     mem::{size_of, zeroed},
@@ -164,7 +164,12 @@ struct App {
     started: bool,
     last_checkpoint: Instant,
     font_path: PathBuf,
+    font_registered: bool,
     names: Option<crate::a11y::Names>,
+    defer_ui: bool,
+    ui_ready: bool,
+    ui_creating: bool,
+    pending_warning: RefCell<String>,
     layout_busy: Cell<bool>,
 }
 impl App {
@@ -175,9 +180,10 @@ impl App {
         if !s.is_empty() {
             crate::log::write(s);
         }
-        text(self.h(ID_WARNING), s);
-        NotifyWinEvent(EVENT_OBJECT_NAMECHANGE, self.h(ID_WARNING), OBJID_CLIENT, 0);
-        if !self.h(ID_START).is_null() {
+        self.pending_warning.replace(s.to_owned());
+        if self.ui_ready {
+            text(self.h(ID_WARNING), s);
+            NotifyWinEvent(EVENT_OBJECT_NAMECHANGE, self.h(ID_WARNING), OBJID_CLIENT, 0);
             self.layout();
         }
     }
@@ -276,7 +282,42 @@ impl App {
             false,
         )
     }
-    unsafe fn create(&mut self) {
+    unsafe fn core_init(&mut self) {
+        // Configuration and system integration are available even before the
+        // first window is shown; old profile fields cannot restore removed modes.
+        self.config.mode = 0;
+        self.config.random_delay = 0;
+        for profile in &mut self.config.profiles {
+            profile.mode = 0;
+            profile.random_delay = 0;
+        }
+        self.register();
+        self.tray_add();
+    }
+    unsafe fn ensure_ui(&mut self) {
+        if self.ui_ready || self.ui_creating {
+            return;
+        }
+        // Creating children synchronously dispatches window messages. Mark this
+        // transaction before any Win32 call so show/layout cannot create twice.
+        self.ui_creating = true;
+        self.loading = true;
+        let mut ic: INITCOMMONCONTROLSEX = zeroed();
+        ic.dwSize = size_of::<INITCOMMONCONTROLSEX>() as u32;
+        ic.dwICC = ICC_STANDARD_CLASSES | ICC_BAR_CLASSES;
+        InitCommonControlsEx(&ic);
+        self.font_registered = AddFontResourceExW(
+            w(&self.font_path.to_string_lossy()).as_ptr(),
+            FR_PRIVATE,
+            null(),
+        ) > 0;
+        self.names = match crate::a11y::Names::new() {
+            Ok(names) => Some(names),
+            Err(error) => {
+                crate::log::write(&error);
+                None
+            }
+        };
         self.dpi = GetDpiForWindow(self.hwnd).max(96);
         self.make_fonts();
         self.control(1, "STATIC", "ClickRun", 0, 0, 20, 18, 260, 38, false, false);
@@ -537,7 +578,7 @@ impl App {
         }
         self.button(ID_ABOUT, "关于", 2, 20, 440, 68);
         self.button(ID_OPEN_CONFIG, "打开配置文件夹", 2, 104, 440, 144);
-        self.control(9,"STATIC","版本 3.0.0 · Rust\r\n\r\n固定间隔，单次连点。\r\nTab 移动焦点；空格操作按钮或开关。\r\n1 毫秒是目标间隔，实际速度取决于系统与目标应用。",0,3,20,106,400,190,false,true);
+        self.control(9,"STATIC","版本 3.0.1 · Rust\r\n\r\n固定间隔，单次连点。\r\nTab 移动焦点；空格操作按钮或开关。\r\n1 毫秒是目标间隔，实际速度取决于系统与目标应用。",0,3,20,106,400,190,false,true);
         self.button(601, "项目主页", 3, 20, 320, 144);
         self.button(602, "GitHub", 3, 20, 366, 144);
         if let Some(names) = &self.names {
@@ -555,23 +596,17 @@ impl App {
                 }
             }
         }
-        self.config.mode = 0;
-        self.config.random_delay = 0;
-        for p in &mut self.config.profiles {
-            p.mode = 0;
-            p.random_delay = 0;
-        }
-        match system::autostart_state() {
-            Ok(v) => self.config.start_with_windows = v,
-            Err(e) => {
-                EnableWindow(self.h(ID_AUTOSTART), 0);
-                self.warn(&e);
-            }
+        // 登录启动属于设置页。显示该页时再读取系统真实状态，避免主窗启动
+        // 就为隐藏控件创建 ShellLink COM 对象并加载整组 Shell 存储模块。
+        self.ui_ready = true;
+        let warning = self.pending_warning.borrow().clone();
+        text(self.h(ID_WARNING), &warning);
+        if !warning.is_empty() {
+            NotifyWinEvent(EVENT_OBJECT_NAMECHANGE, self.h(ID_WARNING), OBJID_CLIENT, 0);
         }
         self.fill();
-        self.register();
-        self.tray_add();
         self.show_page(1);
+        self.ui_creating = false;
     }
     unsafe fn font_for(&self, id: i32) -> HFONT {
         if id == 1 {
@@ -634,13 +669,16 @@ impl App {
         }
     }
     unsafe fn warning_offset(&self) -> i32 {
-        if read(self.h(ID_WARNING)).is_empty() {
+        if self.pending_warning.borrow().is_empty() {
             0
         } else {
             44
         }
     }
     unsafe fn layout(&self) {
+        if !self.ui_ready {
+            return;
+        }
         if self.layout_busy.replace(true) {
             return;
         }
@@ -816,7 +854,7 @@ impl App {
         self.layout();
         ShowWindow(self.h(ID_MAIN), if page == 1 { SW_HIDE } else { SW_SHOW });
         SetFocus(self.h(if page == 1 {
-            ID_BUTTON
+            if self.engine.snapshot().running { ID_START } else { ID_BUTTON }
         } else if page == 2 {
             ID_AUTOSTART
         } else {
@@ -938,59 +976,63 @@ impl App {
     }
     unsafe fn refresh(&mut self) {
         let s = self.engine.snapshot();
-        let sec = s.elapsed.as_secs();
-        text(self.h(ID_SESSION), &s.session.to_string());
-        text(self.h(ID_TOTAL), &s.total.to_string());
-        text(self.h(ID_CPS), &format!("{:.1} 次/秒", s.cps));
-        text(
-            self.h(ID_TIME),
-            &format!("{:02}:{:02}:{:02}", sec / 3600, sec / 60 % 60, sec % 60),
-        );
-        text(
-            self.h(ID_STATUS),
-            if self.test {
-                if s.running {
-                    "隔离测试：模拟连点中"
+        // Hidden startup still completes sessions, persists counts, and updates
+        // the tray; only the window controls depend on first-show initialization.
+        if self.ui_ready {
+            let sec = s.elapsed.as_secs();
+            text(self.h(ID_SESSION), &s.session.to_string());
+            text(self.h(ID_TOTAL), &s.total.to_string());
+            text(self.h(ID_CPS), &format!("{:.1} 次/秒", s.cps));
+            text(
+                self.h(ID_TIME),
+                &format!("{:02}:{:02}:{:02}", sec / 3600, sec / 60 % 60, sec % 60),
+            );
+            text(
+                self.h(ID_STATUS),
+                if self.test {
+                    if s.running {
+                        "隔离测试：模拟连点中"
+                    } else {
+                        "隔离测试：已停止"
+                    }
+                } else if s.running {
+                    "正在连点 · 再按热键可停止"
                 } else {
-                    "隔离测试：已停止"
-                }
-            } else if s.running {
-                "正在连点 · 再按热键可停止"
-            } else {
-                "已停止"
-            },
-        );
-        text(
-            self.h(ID_START),
-            if s.running {
-                "停止连点"
-            } else {
-                "开始连点"
-            },
-        );
-        for id in [
-            ID_BUTTON,
-            ID_RIGHT,
-            ID_MIDDLE,
-            ID_LIMITED,
-            ID_SLIDER,
-            ID_INTERVAL,
-            ID_LIMIT_KIND,
-            ID_PROFILE,
-            ID_SAVE_PROFILE,
-            ID_DELETE_PROFILE,
-            ID_HOTKEY,
-        ] {
-            EnableWindow(self.h(id), if s.running { 0 } else { 1 });
+                    "已停止"
+                },
+            );
+            text(
+                self.h(ID_START),
+                if s.running {
+                    "停止连点"
+                } else {
+                    "开始连点"
+                },
+            );
+            for id in [
+                ID_BUTTON,
+                ID_RIGHT,
+                ID_MIDDLE,
+                ID_LIMITED,
+                ID_SLIDER,
+                ID_INTERVAL,
+                ID_LIMIT_KIND,
+                ID_PROFILE,
+                ID_SAVE_PROFILE,
+                ID_DELETE_PROFILE,
+                ID_HOTKEY,
+            ] {
+                EnableWindow(self.h(id), if s.running { 0 } else { 1 });
+            }
+            EnableWindow(
+                self.h(ID_LIMIT),
+                if !s.running && checked(self.h(ID_LIMITED)) {
+                    1
+                } else {
+                    0
+                },
+            );
         }
-        EnableWindow(
-            self.h(ID_LIMIT),
-            if !s.running && checked(self.h(ID_LIMITED)) {
-                1
-            } else {
-                0
-            },
-        );
         if !s.running && self.started {
             self.started = false;
             self.engine.stop();
@@ -1026,16 +1068,27 @@ impl App {
             self.refresh();
             return;
         }
-        if let Err(e) = self.read_config() {
-            self.warn(&e);
-            return;
+        if self.ui_ready {
+            if let Err(e) = self.read_config() {
+                self.warn(&e);
+                return;
+            }
         }
         self.warn("");
         match self.engine.start(&self.config) {
             Ok(()) => {
                 self.started = true;
                 self.last_checkpoint = Instant::now();
-                SetTimer(self.hwnd, TICK, 250, None);
+                SetTimer(
+                    self.hwnd,
+                    TICK,
+                    if IsWindowVisible(self.hwnd) != 0 {
+                        250
+                    } else {
+                        1000
+                    },
+                    None,
+                );
                 if self.config.play_sound {
                     MessageBeep(MB_OK);
                 }
@@ -1060,6 +1113,9 @@ impl App {
         self.tray = Shell_NotifyIconW(NIM_ADD, &n) != 0;
         if !self.tray {
             self.warn("托盘图标注册失败，窗口将保留。可用“退出”关闭程序。");
+            // Registration can fail during WM_CREATE or Explorer recovery.
+            // Show after this synchronous initialization transaction completes.
+            PostMessageW(self.hwnd, ACTIVATE, 0, 0);
         }
     }
     unsafe fn hide(&mut self) {
@@ -1074,7 +1130,8 @@ impl App {
             }
         }
     }
-    unsafe fn show(&self) {
+    unsafe fn show(&mut self) {
+        self.ensure_ui();
         ShowWindow(self.hwnd, SW_RESTORE);
         SetForegroundWindow(self.hwnd);
         if self.started {
@@ -1827,7 +1884,17 @@ unsafe extern "system" fn window_proc(h: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
     }
     match msg {
         WM_CREATE => {
-            a.create();
+            a.core_init();
+            if !a.defer_ui {
+                a.ensure_ui();
+            }
+            0
+        }
+        WM_SHOWWINDOW => {
+            if wp != 0 {
+                // Also covers a first restore through the system UIA WindowPattern.
+                a.ensure_ui();
+            }
             0
         }
         WM_SIZE => {
@@ -1854,7 +1921,9 @@ unsafe extern "system" fn window_proc(h: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
         }
         WM_DPICHANGED => {
             a.dpi = (wp & 0xffff) as u32;
-            a.make_fonts();
+            if a.ui_ready {
+                a.make_fonts();
+            }
             let r = &*(lp as *const RECT);
             SetWindowPos(
                 h,
@@ -2101,7 +2170,6 @@ pub fn run() {
             .parent()
             .unwrap_or(std::path::Path::new("."))
             .join("assets/FZGWKaiS.ttf");
-        AddFontResourceExW(w(&font_path.to_string_lossy()).as_ptr(), FR_PRIVATE, null());
         let mut a = Box::new(App {
             hwnd: null_mut(),
             controls: BTreeMap::new(),
@@ -2139,13 +2207,12 @@ pub fn run() {
             started: false,
             last_checkpoint: Instant::now(),
             font_path,
-            names: match crate::a11y::Names::new() {
-                Ok(names) => Some(names),
-                Err(e) => {
-                    crate::log::write(&e);
-                    None
-                }
-            },
+            font_registered: false,
+            names: None,
+            defer_ui: args.iter().any(|argument| argument == "--tray"),
+            ui_ready: false,
+            ui_creating: false,
+            pending_warning: RefCell::new(String::new()),
             layout_busy: Cell::new(false),
         });
         // winresource's first icon is ID 1.
@@ -2160,10 +2227,6 @@ pub fn run() {
         if !icon.is_null() {
             a.icon = icon;
         }
-        let mut ic: INITCOMMONCONTROLSEX = zeroed();
-        ic.dwSize = size_of::<INITCOMMONCONTROLSEX>() as u32;
-        ic.dwICC = ICC_STANDARD_CLASSES | ICC_BAR_CLASSES;
-        InitCommonControlsEx(&ic);
         for (class, proc) in [
             (
                 "ClickRun.Rust.Main",
@@ -2259,11 +2322,13 @@ pub fn run() {
         if !a.icon.is_null() {
             DestroyIcon(a.icon);
         }
-        RemoveFontResourceExW(
-            w(&a.font_path.to_string_lossy()).as_ptr(),
-            FR_PRIVATE,
-            null(),
-        );
+        if a.font_registered {
+            RemoveFontResourceExW(
+                w(&a.font_path.to_string_lossy()).as_ptr(),
+                FR_PRIVATE,
+                null(),
+            );
+        }
         ReleaseMutex(mutex);
         CloseHandle(mutex);
         CloseHandle(event);

@@ -227,23 +227,28 @@ fn read_shortcut(path: &Path) -> Result<Option<ShortcutInfo>, String> {
     let path = wide(path.as_os_str());
     unsafe { persist.Load(PCWSTR(path.as_ptr()), STGM_READ) }
         .map_err(|e| format!("启动快捷方式损坏，未修改：{e}"))?;
-    let mut target = vec![0u16; 32768];
-    let mut arguments = vec![0u16; 32768];
-    let mut working_directory = vec![0u16; 32768];
-    unsafe { link.GetPath(&mut target, std::ptr::null_mut(), SLGP_RAWPATH.0 as u32) }
-        .map_err(|e| format!("无法读取启动快捷方式目标：{e}"))?;
-    unsafe { link.GetArguments(&mut arguments) }
-        .map_err(|e| format!("无法读取启动快捷方式参数：{e}"))?;
-    unsafe { link.GetWorkingDirectory(&mut working_directory) }
-        .map_err(|e| format!("无法读取启动快捷方式工作目录：{e}"))?;
     let decode = |value: &[u16]| {
         let len = value.iter().position(|c| *c == 0).unwrap_or(value.len());
         String::from_utf16_lossy(&value[..len])
     };
+    // 保留完整长路径/参数容量，但三个字段依次读取，共用一个 64KiB 缓冲。
+    // 与原来并存的三个 Vec 相比，临时字符缓冲峰值减少 128KiB。
+    let mut buffer = vec![0u16; 32768];
+    unsafe { link.GetPath(&mut buffer, std::ptr::null_mut(), SLGP_RAWPATH.0 as u32) }
+        .map_err(|e| format!("无法读取启动快捷方式目标：{e}"))?;
+    let target = decode(&buffer);
+    buffer.fill(0);
+    unsafe { link.GetArguments(&mut buffer) }
+        .map_err(|e| format!("无法读取启动快捷方式参数：{e}"))?;
+    let arguments = decode(&buffer);
+    buffer.fill(0);
+    unsafe { link.GetWorkingDirectory(&mut buffer) }
+        .map_err(|e| format!("无法读取启动快捷方式工作目录：{e}"))?;
+    let working_directory = decode(&buffer);
     Ok(Some(ShortcutInfo {
-        target: decode(&target),
-        arguments: decode(&arguments),
-        working_directory: decode(&working_directory),
+        target,
+        arguments,
+        working_directory,
     }))
 }
 
@@ -310,6 +315,18 @@ fn combine_states(states: [Result<bool, String>; 2]) -> Result<bool, String> {
     }
 }
 
+/// 任一正确入口即可确定启用。注册项已经命中时无需激活 ShellLink COM 或读盘。
+/// false/读取错误仍查询另一入口，并保留原有未知状态的错误反馈。
+fn state_with_shortcut(
+    registry: Result<bool, String>,
+    shortcut: impl FnOnce() -> Result<bool, String>,
+) -> Result<bool, String> {
+    match registry {
+        Ok(true) => Ok(true),
+        registry => combine_states([registry, shortcut()]),
+    }
+}
+
 fn set_simulated(dir: &Path, current: &Path, enable: bool) -> Result<(), String> {
     fs::create_dir_all(dir).map_err(|e| format!("无法创建隔离系统目录：{e}"))?;
     let command = format!("\"{}\" --tray", current.display());
@@ -351,10 +368,11 @@ pub fn autostart_state() -> Result<bool, String> {
             executable_part(&command).is_some_and(|exe| same_exe(exe, &current))
         })
     });
-    let shortcut = shortcut_path()
-        .and_then(|path| read_shortcut(&path))
-        .map(|shortcut| shortcut.is_some_and(|shortcut| same_exe(&shortcut.target, &current)));
-    combine_states([registry, shortcut])
+    state_with_shortcut(registry, || {
+        shortcut_path()
+            .and_then(|path| read_shortcut(&path))
+            .map(|shortcut| shortcut.is_some_and(|shortcut| same_exe(&shortcut.target, &current)))
+    })
 }
 
 /// 用户主动切换时，幂等地同时维护原版的两种登录启动入口。
@@ -414,6 +432,54 @@ pub fn set_autostart(enable: bool) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn known_enabled_registry_does_not_activate_or_read_shortcut() {
+        assert_eq!(
+            state_with_shortcut(Ok(true), || panic!("已确定启用时不应访问快捷方式")),
+            Ok(true)
+        );
+        let calls = std::cell::Cell::new(0);
+        assert_eq!(
+            state_with_shortcut(Ok(false), || {
+                calls.set(calls.get() + 1);
+                Ok(true)
+            }),
+            Ok(true)
+        );
+        assert_eq!(calls.get(), 1);
+        assert_eq!(
+            state_with_shortcut(Err("注册项无法读取".into()), || {
+                calls.set(calls.get() + 1);
+                Ok(true)
+            }),
+            Ok(true)
+        );
+        assert_eq!(calls.get(), 2);
+        assert!(state_with_shortcut(Ok(false), || Err("快捷方式无法读取".into())).is_err());
+        assert!(state_with_shortcut(Err("注册项无法读取".into()), || Ok(false)).is_err());
+    }
+    #[test]
+    fn reused_shortcut_buffer_preserves_real_target_short_arguments_and_working_directory() {
+        let dir = std::env::temp_dir().join(format!(
+            "ClickRun-link-buffer-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&dir).unwrap();
+        let path = dir.join("启动链接测试.lnk");
+        let current = std::env::current_exe().unwrap();
+        write_shortcut(&path, &current).unwrap();
+        let read = read_shortcut(&path).unwrap().unwrap();
+        assert!(same_exe(&read.target, &current));
+        assert_eq!(read.arguments, "--tray");
+        assert!(same_exe(&read.working_directory, current.parent().unwrap()));
+        assert!(shortcut_matches(&read, &current));
+        fs::remove_file(path).unwrap();
+        fs::remove_dir(dir).unwrap();
+    }
     #[test]
     fn existing_shortcut_is_reused_only_when_target_arguments_and_working_directory_match() {
         let current = Path::new(r"D:\测试 空间\连点器 Modern.exe");

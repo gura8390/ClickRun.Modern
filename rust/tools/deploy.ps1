@@ -5,7 +5,9 @@ $projectRoot=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $publish='D:\codex\ClickRun\ClickRun.Modern\publish'
 $destination=Join-Path $publish 'ClickRun.Modern.exe'
 $backup='D:\codex\ClickRun\backups\Modern-2.1.1-before-Rust-20261116'
-$candidate=Join-Path $projectRoot 'dist\连点器 Modern'
+$version=[regex]::Match([IO.File]::ReadAllText((Join-Path $projectRoot 'Cargo.toml')),'(?m)^version\s*=\s*"([0-9.]+)"').Groups[1].Value
+if(-not $version){throw '无法读取应用版本。'}
+$candidate=Join-Path $projectRoot "dist\$version\连点器 Modern"
 if (-not(Test-Path -LiteralPath (Join-Path $backup 'publish\ClickRun.Modern.exe'))) { throw '未找到原版备份，未替换程序。' }
 $running=Get-CimInstance Win32_Process|Where-Object {$_.ExecutablePath -and $_.ExecutablePath.Equals($destination,[StringComparison]::OrdinalIgnoreCase)}
 if($running){throw '原程序仍在运行，请先正常退出。未强行结束进程。'}
