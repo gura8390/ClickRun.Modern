@@ -1,60 +1,29 @@
-# ClickRun Modern · Windows 鼠标连点器
+# ClickRun Modern · 连点器
 
-使用 C#、.NET 8 和 WPF 编写的鼠标连点工具，支持全局热键、参数方案与系统托盘。A Windows auto-clicker built with .NET 8 and WPF.
+当前版本 **3.0.0**，采用 Rust 与 Windows 原生控件，以低内存占用为首要目标。
 
-当前源码项目版本为 **2.1.0**，以 `ClickRun.UI/ClickRun.UI.csproj` 为准。以下分别提供现有下载入口和源码构建方法。
+## 下载
 
-## 下载与启动
+[下载 Windows x64 便携包](https://github.com/gura8390/ClickRun.Modern/releases/download/v3.0.0/ClickRun-Modern-v3.0.0-Windows-x64.zip) · [版本说明](https://github.com/gura8390/ClickRun.Modern/releases/tag/v3.0.0)
 
-前往 [Windows 下载页](https://github.com/gura8390/ClickRun.Modern/releases/latest) 获取现有 `ClickRun.Modern.exe`。目前保留的 Release tag 是 `Publish`；该历史二进制的内部版本尚未核验。
+解压完整压缩包后运行 `连点器 Modern.exe`。包内含运行库和字体，无需安装 .NET Desktop Runtime。
 
-源码目标为 Windows 和 .NET 8。运行非自包含构建时需要 **.NET 8 Desktop Runtime**。如历史单文件下载缺少运行依赖，可按下文从源码构建完整发布目录。
+## 3.0.0 更新
 
-## 主要功能
+- 使用 Rust 重构，空闲时阻塞等待消息，连点时使用可取消的系统计时器。
+- 恢复旧 ClickRun 的窄窗布局、字体与配色，数字输入框居中。
+- 固定单击、固定间隔，移除点击模式和随机变化。
+- 修复滚动残影、提示展开时的布局和高 DPI 对齐。
+- 保留全局热键、命名方案、累计统计、托盘、置顶、音效和登录启动。
+- 为原生控件提供中文无障碍名称与真实状态，间隔滑块读写单位为毫秒。
 
-- 左键、右键、中键，以及单击、双击、三击模式。
-- 点击间隔、随机延迟和指定次数。
-- 全局热键启停，支持组合键。
-- 保存多套参数方案，自动保存设置。
-- 系统托盘、窗口置顶、单实例及开机自启设置。
-- 显示点击次数、运行时间与点击速度。
+可见空闲状态各采样 20 秒：旧 WPF 工作集约 130.43 MiB、私有提交约 75.48 MiB；Rust 3.0.0 分别约 **23.84 MiB / 3.35 MiB**。两次采样非同时进行，结果只对应这些空闲样本。
 
-## 使用步骤
+## 源码与说明
 
-1. 选择按键、点击模式、间隔和次数，按需设置随机延迟。
-2. 确认界面显示的启停热键，点击开始或使用热键启动。
-3. 再次点击停止或使用同一热键结束；离开目标程序前先停止连点。
-4. 需要复用参数时保存为方案；托盘和开机启动选项在设置中调整。
+- [Rust 工程与使用说明](rust/README.md)
+- [验证与性能摘要](rust/docs/verification-3.0.0.md)
+- [第三方资源说明](rust/THIRD_PARTY_NOTICES.md)
+- [旧 WPF 说明](docs/legacy-wpf.md)
 
-## 从源码构建
-
-安装 Windows 上的 .NET 8 SDK，然后执行：
-
-```powershell
-git clone https://github.com/gura8390/ClickRun.Modern.git
-cd ClickRun.Modern
-dotnet build ClickRun.sln -c Release
-dotnet run --project ClickRun.UI -c Release
-```
-
-发布一个不依赖预装 .NET Runtime 的 win-x64 目录：
-
-```powershell
-dotnet publish ClickRun.UI -c Release -r win-x64 --self-contained true -o artifacts/win-x64
-```
-
-分发时保留整个输出目录，不要只复制其中的 EXE。
-
-## 代码结构
-
-- `ClickRun.Core/`：模型、点击服务与系统辅助逻辑。
-- `ClickRun.UI/`：WPF 窗口、ViewModel、主题和资源。
-- `ClickRun.sln`：解决方案。
-- `publish/`：保留的历史发布输出。
-- [TECHNICAL.md](TECHNICAL.md)：现有实现的技术参考。
-
-`bin/obj` 是本地自动生成的编译缓存，不提交版本库。
-
-## 许可与致谢
-
-[MIT License](LICENSE)。感谢 [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) 和 [Hardcodet.NotifyIcon.Wpf](https://github.com/hardcodet/wpf-notifyicon) 等依赖项目。
+Rust 工程位于 `rust/`。仓库根的 `ClickRun.Core`、`ClickRun.UI` 和 `publish` 保留旧 WPF 版本，当前便携版请从上方新版下载入口获取。

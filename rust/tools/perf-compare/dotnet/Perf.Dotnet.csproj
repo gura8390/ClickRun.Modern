@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Optimize>true</Optimize>
+    <AssemblyName>ClickRun.Core.Perf</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="ClickRun.Core">
+      <HintPath>D:\codex\ClickRun\ClickRun.Modern\publish\ClickRun.Core.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="CommunityToolkit.Mvvm">
+      <HintPath>D:\codex\ClickRun\ClickRun.Modern\publish\CommunityToolkit.Mvvm.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
