@@ -578,7 +578,7 @@ impl App {
         }
         self.button(ID_ABOUT, "关于", 2, 20, 440, 68);
         self.button(ID_OPEN_CONFIG, "打开配置文件夹", 2, 104, 440, 144);
-        self.control(9,"STATIC","版本 3.0.1 · Rust\r\n\r\n固定间隔，单次连点。\r\nTab 移动焦点；空格操作按钮或开关。\r\n1 毫秒是目标间隔，实际速度取决于系统与目标应用。",0,3,20,106,400,190,false,true);
+        self.control(9,"STATIC","版本 3.0.2 · Rust\r\n\r\n固定间隔，单次连点。\r\nTab 移动焦点；空格操作按钮或开关。\r\n1 毫秒是目标间隔，实际速度取决于系统与目标应用。",0,3,20,106,400,190,false,true);
         self.button(601, "项目主页", 3, 20, 320, 144);
         self.button(602, "GitHub", 3, 20, 366, 144);
         if let Some(names) = &self.names {

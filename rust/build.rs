@@ -69,8 +69,8 @@ fn version_resource() -> Vec<u8> {
     let values = [
         ("FileDescription", "连点器 Modern"),
         ("ProductName", "连点器 Modern"),
-        ("FileVersion", "3.0.1"),
-        ("ProductVersion", "3.0.1"),
+        ("FileVersion", "3.0.2"),
+        ("ProductVersion", "3.0.2"),
         ("InternalName", "liandianqi"),
         ("OriginalFilename", "连点器 Modern.exe"),
     ];
@@ -89,9 +89,9 @@ fn version_resource() -> Vec<u8> {
         0xFEEF04BDu32,
         0x00010000,
         0x00030000,
-        0x00010000,
+        0x00020000,
         0x00030000,
-        0x00010000,
+        0x00020000,
         0x3f,
         0,
         0x00040004,
